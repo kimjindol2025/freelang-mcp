@@ -6,6 +6,7 @@ REF="${FREELANG_TOOLS_REF:-main}"
 INSTALL_ROOT="${FREELANG_TOOLS_HOME:-${HOME:-}/.local/share/freelang-tools}"
 BIN_DIR="${FREELANG_TOOLS_BIN:-${HOME:-}/.local/bin}"
 ARCHIVE_URL="https://codeload.github.com/${REPOSITORY}/tar.gz/refs/heads/${REF}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)"
 
 if [ -z "${HOME:-}" ]; then
   echo "INSTALL=BLOCKED"
@@ -32,20 +33,26 @@ echo "BIN_DIR=$BIN_DIR"
 
 mkdir -p "$INSTALL_ROOT" "$BIN_DIR"
 
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$ARCHIVE_URL" -o "$TEMP_DIR/source.tar.gz"
-elif [ -n "${GH_TOKEN:-}" ]; then
-  curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "$ARCHIVE_URL" -o "$TEMP_DIR/source.tar.gz"
+if [ -x "$SCRIPT_DIR/scripts/fl-tools" ] && [ -x "$SCRIPT_DIR/scripts/fl-test" ]; then
+  SOURCE_DIR="$SCRIPT_DIR"
+  echo "SOURCE_MODE=local-checkout"
 else
-  curl -fsSL "$ARCHIVE_URL" -o "$TEMP_DIR/source.tar.gz"
-fi
+  echo "SOURCE_MODE=github-archive"
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+    curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" "$ARCHIVE_URL" -o "$TEMP_DIR/source.tar.gz"
+  elif [ -n "${GH_TOKEN:-}" ]; then
+    curl -fsSL -H "Authorization: Bearer $GH_TOKEN" "$ARCHIVE_URL" -o "$TEMP_DIR/source.tar.gz"
+  else
+    curl -fsSL "$ARCHIVE_URL" -o "$TEMP_DIR/source.tar.gz"
+  fi
 
-tar -xzf "$TEMP_DIR/source.tar.gz" -C "$TEMP_DIR"
-SOURCE_DIR="$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d -name 'freelang-tools-*' -print -quit)"
-if [ -z "$SOURCE_DIR" ]; then
-  echo "INSTALL=BLOCKED"
-  echo "CAUSE=source archive layout not recognized" >&2
-  exit 1
+  tar -xzf "$TEMP_DIR/source.tar.gz" -C "$TEMP_DIR"
+  SOURCE_DIR="$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d -name 'freelang-tools-*' -print -quit)"
+  if [ -z "$SOURCE_DIR" ]; then
+    echo "INSTALL=BLOCKED"
+    echo "CAUSE=source archive layout not recognized" >&2
+    exit 1
+  fi
 fi
 
 rm -rf "$INSTALL_ROOT/current"
