@@ -5,6 +5,9 @@
     "test": "./scripts/fl-test",
     "check": "./scripts/fl-check",
     "detect": "./scripts/fl-detect",
-    "status": "./scripts/fl-status"
+    "status": "./scripts/fl-status",
+    "route": "./scripts/fl-route",
+    "doctor": "./scripts/fl-doctor",
+    "release-check": "./scripts/fl-release-check"
   }
 }

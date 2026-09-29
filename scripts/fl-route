@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+
+TOOLS_ROOT="$ROOT"
+DETECT_OUTPUT="$("$TOOLS_ROOT/scripts/fl-detect" "$TARGET")"
+PROJECT_ROOT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^ROOT=//p')"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+FAMILY="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^FAMILY=//p')"
+RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+TEST_ROOT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^TEST_ROOT=//p')"
+TEST_FILES="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^TEST_FILES=//p')"
+
+DEV_COMMAND=UNKNOWN
+case "$DIALECT" in
+  AIA) DEV_COMMAND="tools/verify-aia-cold-boot.sh" ;;
+  FRONT) DEV_COMMAND="fl-front-build.js 또는 기존 PM2 명령" ;;
+  SCRIPT) DEV_COMMAND="bin/fl-script-unified.js" ;;
+  FX) DEV_COMMAND="fl-run.sh 또는 fl-test.sh" ;;
+  AFJ) DEV_COMMAND="bootstrap.js 또는 저장소의 dev 명령" ;;
+esac
+
+if [[ -f "$PROJECT_ROOT/package.json" ]]; then
+  PACKAGE_SCRIPTS="$(node -e 'const p=require(process.argv[1]); console.log(Object.keys(p.scripts||{}).join(",")||"none")' "$PROJECT_ROOT/package.json" 2>/dev/null || echo unavailable)"
+else
+  PACKAGE_SCRIPTS=none
+fi
+
+printf 'DEV_COMMAND=%s\n' "$DEV_COMMAND"
+printf 'PACKAGE_SCRIPTS=%s\n' "$PACKAGE_SCRIPTS"
+printf 'PROJECT_ROOT=%s\n' "$PROJECT_ROOT"
+printf 'RUNNER=%s\n' "$RUNNER"
+printf 'TEST_ROOT=%s\n' "$TEST_ROOT"
+printf 'TEST_FILES=%s\n' "$TEST_FILES"
+printf 'TEST_COMMAND=fl-tools test %s\n' "$TARGET"
+printf 'CHECK_COMMAND=fl-tools check %s\n' "$TARGET"

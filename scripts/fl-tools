@@ -13,6 +13,12 @@ FreeLang Tools — 공용 개발 CLI
   fl-tools check            FreeLang 소스·테스트 검사
   fl-tools detect [경로]    FreeLang 계열 자동 판별
   fl-tools status [경로]    프로젝트·Git·테스트 상태 출력
+  fl-tools route [경로]     프로젝트 작업 경로·명령 요약
+  fl-tools doctor [경로]    프로젝트 건강검진
+  fl-tools session <명령>   개발 세션·포트·로그 확인
+  fl-tools journal <명령>   작업 저널 기록
+  fl-tools release-check    릴리즈 준비 상태 검사
+  fl-tools safe-push        원격 push 전 안전 검사
   fl-tools help             도움말
 EOF
 }
@@ -32,6 +38,24 @@ case "$command_name" in
     ;;
   status)
     exec "$ROOT/scripts/fl-status" "$@"
+    ;;
+  route|router)
+    exec "$ROOT/scripts/fl-route" "$@"
+    ;;
+  doctor)
+    exec "$ROOT/scripts/fl-doctor" "$@"
+    ;;
+  session)
+    exec "$ROOT/scripts/fl-session" "$@"
+    ;;
+  journal)
+    exec "$ROOT/scripts/fl-journal" "$@"
+    ;;
+  release-check)
+    exec "$ROOT/scripts/fl-release-check" "$@"
+    ;;
+  safe-push)
+    exec "$ROOT/scripts/fl-safe-push" "$@"
     ;;
   help|-h|--help)
     usage

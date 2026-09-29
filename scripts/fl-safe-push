@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+PUSH=NO
+REMOTE=""
+BRANCH="$(git branch --show-current)"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --push) PUSH=YES ;;
+    --remote) REMOTE="${2:?--remote requires a name}"; shift ;;
+    --branch) BRANCH="${2:?--branch requires a name}"; shift ;;
+    --help|-h)
+      cat <<'EOF'
+사용법: fl-tools safe-push [--remote <name>] [--branch <branch>] [--push]
+기본 동작은 원격 상태 확인이며, 실제 push에는 --push가 필요하다.
+EOF
+      exit 0
+      ;;
+    *) echo "알 수 없는 옵션: $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+
+if [[ -z "$REMOTE" ]]; then
+  REMOTES=( $(git remote) )
+else
+  REMOTES=("$REMOTE")
+fi
+if [[ "${#REMOTES[@]}" -eq 0 ]]; then
+  echo "SAFE_PUSH=BLOCKED"
+  echo "CAUSE=no remotes"
+  exit 1
+fi
+
+if [[ -n "$(git status --short)" ]]; then
+  echo "WORKTREE=DIRTY"
+  echo "SAFE_PUSH=BLOCKED"
+  exit 1
+fi
+echo "WORKTREE=CLEAN"
+LOCAL_HEAD="$(git rev-parse HEAD)"
+echo "LOCAL_HEAD=$LOCAL_HEAD"
+
+for remote in "${REMOTES[@]}"; do
+  if ! git config --get "remote.$remote.url" >/dev/null; then
+    echo "REMOTE_${remote}=MISSING"
+    exit 1
+  fi
+  REMOTE_HEAD="$(git ls-remote "$remote" "refs/heads/$BRANCH" | awk '{print $1}')"
+  echo "REMOTE_${remote}_HEAD=${REMOTE_HEAD:-NONE}"
+done
+
+if [[ "$PUSH" != YES ]]; then
+  echo "SAFE_PUSH=READY_CHECK_ONLY"
+  exit 0
+fi
+
+for remote in "${REMOTES[@]}"; do
+  git push "$remote" "$BRANCH"
+done
+echo "SAFE_PUSH=PASS"

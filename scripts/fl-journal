@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+COMMAND="${1:-show}"
+shift || true
+FILE="${FREELANG_JOURNAL_FILE:-.freelang/worklog.md}"
+
+case "$COMMAND" in
+  init)
+    mkdir -p "$(dirname -- "$FILE")"
+    if [[ ! -e "$FILE" ]]; then
+      { echo "# FreeLang Work Journal"; echo; echo '작업 기록은 fl-tools journal add 명령으로 남긴다.'; } > "$FILE"
+    fi
+    echo "JOURNAL=$FILE"
+    ;;
+  add)
+    if [[ $# -eq 0 ]]; then
+      echo "사용법: fl-tools journal add <기록>" >&2
+      exit 2
+    fi
+    mkdir -p "$(dirname -- "$FILE")"
+    if [[ ! -e "$FILE" ]]; then
+      { echo "# FreeLang Work Journal"; echo; } > "$FILE"
+    fi
+    printf '\n## %s\n\n%s\n' "$(date -Iseconds)" "$*" >> "$FILE"
+    echo "JOURNAL_APPEND=PASS"
+    ;;
+  show)
+    if [[ -f "$FILE" ]]; then
+      sed -n '1,240p' "$FILE"
+    else
+      echo "JOURNAL=NOT_FOUND"
+    fi
+    ;;
+  *)
+    echo "사용법: fl-tools journal {init|add <기록>|show}" >&2
+    exit 2
+    ;;
+esac

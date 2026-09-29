@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+COMMAND="${1:-status}"
+shift || true
+
+case "$COMMAND" in
+  status)
+    if command -v pm2 >/dev/null 2>&1; then
+      set +e
+      PM2_OUTPUT="$(pm2 list 2>&1)"
+      PM2_CODE=$?
+      set -e
+      if [[ "$PM2_CODE" -eq 0 ]]; then
+        printf '%s\n' "$PM2_OUTPUT"
+      else
+        echo "PM2=BLOCKED"
+        echo "CAUSE=PM2 접근 실패: 소켓 또는 로그 권한을 확인해야 함"
+        exit 1
+      fi
+    else
+      echo "PM2=BLOCKED"
+      echo "CAUSE=pm2 not installed"
+      exit 1
+    fi
+    ;;
+  ports)
+    if command -v ss >/dev/null 2>&1; then
+      ss -ltnp 2>/dev/null || ss -ltn
+    else
+      echo "PORTS=BLOCKED"
+      echo "CAUSE=ss not installed"
+      exit 1
+    fi
+    ;;
+  logs)
+    if [[ -z "${1:-}" ]]; then
+      echo "사용법: fl-tools session logs <pm2-name>" >&2
+      exit 2
+    fi
+    set +e
+    PM2_OUTPUT="$(pm2 logs "$1" --lines "${2:-80}" 2>&1)"
+    PM2_CODE=$?
+    set -e
+    if [[ "$PM2_CODE" -eq 0 ]]; then
+      printf '%s\n' "$PM2_OUTPUT"
+    else
+      echo "PM2_LOGS=BLOCKED"
+      echo "CAUSE=PM2 로그 접근 실패"
+      exit 1
+    fi
+    ;;
+  start)
+    echo "SESSION_START=BLOCKED"
+    echo "CAUSE=서비스별 실행 명령을 확인하지 않은 상태에서 임의로 시작하지 않음"
+    echo "NEXT=fl-tools route . 결과의 실제 명령을 확인한 뒤 직접 실행"
+    exit 1
+    ;;
+  stop|restart)
+    echo "SESSION_$COMMAND=BLOCKED"
+    echo "CAUSE=프로세스 변경은 서비스와 대상을 명시해야 함"
+    exit 1
+    ;;
+  *)
+    echo "사용법: fl-tools session {status|ports|logs <name>|start|stop|restart}" >&2
+    exit 2
+    ;;
+esac

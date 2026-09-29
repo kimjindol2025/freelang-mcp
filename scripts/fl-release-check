@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+READY=YES
+
+if [[ -f "$ROOT/CHANGELOG.md" || -d "$ROOT/releases" ]]; then
+  echo "RELEASE_NOTES=PASS"
+else
+  echo "RELEASE_NOTES=BLOCKED"
+  READY=NO
+fi
+
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "GIT=PASS"
+  if [[ -n "$(git -C "$ROOT" status --short)" ]]; then
+    echo "WORKTREE=CLEAN_REQUIRED"
+    READY=NO
+  else
+    echo "WORKTREE=CLEAN"
+  fi
+else
+  echo "GIT=BLOCKED"
+  READY=NO
+fi
+
+if [[ -n "$(git -C "$ROOT" tag --list 'v*' 2>/dev/null)" ]]; then
+  echo "TAGS=PASS"
+else
+  echo "TAGS=NONE"
+fi
+
+if [[ -f "$ROOT/CHANGELOG.md" ]] && grep -qE 'TECHNICAL_BASELINE|RELEASE_COMMIT|KNOWN_LIMITS|REGRESSION_RESULT|ARTIFACT_HASH' "$ROOT/CHANGELOG.md"; then
+  echo "RELEASE_FIELDS=PASS"
+else
+  echo "RELEASE_FIELDS=UNRESOLVED"
+fi
+
+if [[ "$READY" == YES ]]; then
+  echo "RELEASE_READY=YES"
+else
+  echo "RELEASE_READY=NO"
+  exit 1
+fi

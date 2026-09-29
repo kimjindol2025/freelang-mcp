@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+
+TOOLS_ROOT="$ROOT"
+DETECT_OUTPUT="$("$TOOLS_ROOT/scripts/fl-detect" "$TARGET")"
+PROJECT_ROOT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^ROOT=//p')"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+TEST_ROOT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^TEST_ROOT=//p')"
+
+FAIL=0
+if [[ "$RUNNER" != "none" && -e "$RUNNER" ]]; then
+  echo "RUNNER=PASS"
+else
+  echo "RUNNER=BLOCKED"
+  FAIL=1
+fi
+
+if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "GIT=PASS"
+else
+  echo "GIT=NOT_A_REPOSITORY"
+fi
+
+if [[ -d "$TEST_ROOT" ]]; then
+  echo "TEST_ROOT=PASS"
+else
+  echo "TEST_ROOT=NOT_FOUND"
+fi
+
+if [[ -f "$PROJECT_ROOT/package.json" || -f "$PROJECT_ROOT/freelang.json" || "$DIALECT" == AIA ]]; then
+  echo "MANIFEST=PASS"
+else
+  echo "MANIFEST=UNKNOWN"
+fi
+
+if command -v fl-tools >/dev/null 2>&1 || [[ -x "$ROOT/scripts/fl-tools" ]]; then
+  echo "TOOLS=PASS"
+else
+  echo "TOOLS=BLOCKED"
+  FAIL=1
+fi
+
+if [[ "$FAIL" -eq 0 ]]; then
+  echo "PROJECT_DOCTOR=PASS"
+else
+  echo "PROJECT_DOCTOR=BLOCKED"
+  exit 1
+fi
