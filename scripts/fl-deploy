@@ -20,6 +20,14 @@ if [[ "$REVIEW_CODE" -ne 0 ]] || ! grep -q '^REVIEW=PASS$' <<<"$REVIEW_OUTPUT"; 
 fi
 echo "REVIEW=PASS"
 
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1 && \
+   [[ -n "$(git -C "$ROOT" status --short)" ]] && \
+   [[ "${FREELANG_ALLOW_DIRTY_DEPLOY:-0}" != 1 ]]; then
+  echo "DEPLOY=BLOCKED"
+  echo "CAUSE=worktree is dirty; commit or explicitly set FREELANG_ALLOW_DIRTY_DEPLOY=1"
+  exit 4
+fi
+
 DEPLOY_CONTRACT=none
 if [[ -x "$ROOT/.freelang/deploy.sh" ]]; then
   DEPLOY_CONTRACT="$ROOT/.freelang/deploy.sh"
