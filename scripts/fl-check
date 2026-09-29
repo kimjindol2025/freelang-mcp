@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+RUNNER="${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}"
+
+if [[ ! -f "$RUNNER" ]]; then
+  echo "FREELANG_CHECK=BLOCKED"
+  echo "CAUSE=AFJ runner not found: $RUNNER" >&2
+  exit 2
+fi
+
+mapfile -t SOURCES < <(find "$ROOT/src" -type f -name '*.fl' -print 2>/dev/null | sort)
+for source in "${SOURCES[@]}"; do
+  echo "[fl-check] $source"
+  node "$RUNNER" check "$source"
+done
+
+"$ROOT/scripts/fl-test"
+echo "FREELANG_CHECK=PASS"

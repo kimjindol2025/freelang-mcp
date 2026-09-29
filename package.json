@@ -1,0 +1,8 @@
+{
+  "name": "freelang-tools",
+  "private": true,
+  "scripts": {
+    "test": "./scripts/fl-test",
+    "check": "./scripts/fl-check"
+  }
+}
