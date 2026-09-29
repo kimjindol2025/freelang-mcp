@@ -1,0 +1,1 @@
+(defn fixture-value [] 42)

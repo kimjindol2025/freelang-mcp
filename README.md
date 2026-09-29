@@ -89,6 +89,12 @@ START → CODING → REVIEW → DEPLOY
 - `deploy`: review PASS 이후 프로젝트가 제공한 배포·smoke 계약만 실행한다.
   배포 계약이 없으면 서버 구조를 추측하지 않고 `DEPLOY=BLOCKED`로 끝난다.
 
+배포 경로 자체는 실제 서버에 연결하지 않는 fixture로 검증한다.
+
+```bash
+npm run test:deploy-fixture
+```
+
 - `route`: 프로젝트 방언·runner·개발/테스트 명령을 요약한다.
 - `doctor`: runner, Git, 테스트, 기본 manifest를 점검한다.
 - `session`: PM2와 포트·로그를 조회한다. 알 수 없는 서비스를 임의로 재시작하지 않는다.

@@ -1,0 +1,2 @@
+(deftest "deploy fixture" (is= 4 (+ 2 2)))
+(run-tests)

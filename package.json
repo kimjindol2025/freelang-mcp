@@ -11,6 +11,7 @@
     "status": "./scripts/fl-status",
     "route": "./scripts/fl-route",
     "doctor": "./scripts/fl-doctor",
-    "release-check": "./scripts/fl-release-check"
+    "release-check": "./scripts/fl-release-check",
+    "test:deploy-fixture": "./tests/deploy-fixture/run.sh"
   }
 }
