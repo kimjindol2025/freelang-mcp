@@ -2,6 +2,27 @@
 
 FreeLang 프로젝트에서 공통으로 사용하는 개발자 CLI와 테스트 러너.
 
+## 다른 서버에 설치
+
+저장소가 공개되어 있으면 다른 서버에서 다음 한 줄로 설치할 수 있다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kimjindol2025/freelang-tools/main/install.sh | sh
+```
+
+설치기는 `sudo`를 사용하지 않고 다음 위치에만 설치한다.
+
+```text
+$HOME/.local/share/freelang-tools
+$HOME/.local/bin/fl-tools
+$HOME/.local/bin/fl-test
+```
+
+`$HOME/.local/bin`이 PATH에 없으면 설치기가 추가할 명령을 출력한다.
+비공개 저장소에서는 먼저 인증된 `git clone` 또는 `gh repo clone`을 수행한 뒤
+저장소 안에서 `./install.sh`를 실행하거나, `GITHUB_TOKEN`/`GH_TOKEN`을
+안전한 환경 변수로 전달해야 한다. 토큰을 URL이나 저장소 설정에 기록하지 않는다.
+
 ## 명령
 
 ```bash
