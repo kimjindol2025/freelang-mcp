@@ -7,6 +7,8 @@ FreeLang 프로젝트에서 공통으로 사용하는 개발자 CLI와 테스트
 ```bash
 fl-tools test
 fl-tools check
+fl-tools detect .
+fl-tools status .
 fl-test
 ```
 
@@ -40,3 +42,6 @@ ln -s "$PWD/scripts/fl-test" "$HOME/.local/bin/fl-test"
 ```
 
 테스트 파일은 `tests/*.test.fl` 또는 하위 디렉터리의 `*.test.fl` 이름을 사용한다.
+
+`fl-tools`는 계열을 강제로 통합하지 않는다. AFJ, FX, AIA, Script, Front를
+판별하고 현재 연결된 어댑터가 없으면 `BLOCKED` 또는 `UNRESOLVED`로 보고한다.

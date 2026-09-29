@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "test": "./scripts/fl-test",
-    "check": "./scripts/fl-check"
+    "check": "./scripts/fl-check",
+    "detect": "./scripts/fl-detect",
+    "status": "./scripts/fl-status"
   }
 }

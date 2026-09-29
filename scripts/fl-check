@@ -2,8 +2,20 @@
 set -Eeuo pipefail
 
 SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
-ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET_INPUT="${1:-.}"
+shift || true
+ROOT="$(cd -- "$TARGET_INPUT" && pwd -P)"
 RUNNER="${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}"
+
+DIALECT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT" | sed -n 's/^DIALECT=//p')"
+
+if [[ "$DIALECT" != "AFJ" ]]; then
+  echo "FREELANG_CHECK=DEFERRED"
+  echo "DIALECT=$DIALECT"
+  "$TOOLS_ROOT/scripts/fl-test" "$ROOT" "$@"
+  exit 0
+fi
 
 if [[ ! -f "$RUNNER" ]]; then
   echo "FREELANG_CHECK=BLOCKED"
@@ -17,5 +29,5 @@ for source in "${SOURCES[@]}"; do
   node "$RUNNER" check "$source"
 done
 
-"$ROOT/scripts/fl-test"
+"$TOOLS_ROOT/scripts/fl-test" "$ROOT" "$@"
 echo "FREELANG_CHECK=PASS"

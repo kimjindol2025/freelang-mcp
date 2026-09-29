@@ -2,9 +2,53 @@
 set -Eeuo pipefail
 
 SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
-ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET_INPUT="${1:-.}"
+shift || true
+ROOT="$(cd -- "$TARGET_INPUT" && pwd -P)"
 RUNNER="${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}"
 TEST_ROOT="${FREELANG_TEST_ROOT:-$ROOT/tests}"
+
+DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+
+case "$DIALECT" in
+  FRONT)
+    FRONT_BUILD="$ROOT/fl-front-build.js"
+    FRONT_DIR="$ROOT"
+    if [[ ! -f "$FRONT_BUILD" && -f "$ROOT/web/fl-front-build.js" ]]; then
+      FRONT_BUILD="$ROOT/web/fl-front-build.js"
+      FRONT_DIR="$ROOT/web"
+    fi
+    if [[ -f "$FRONT_BUILD" ]]; then
+      (cd "$FRONT_DIR" && FL_GIT_REPO="${FL_GIT_REPO:-$ROOT}" node fl-front-build.js)
+      echo "FREELANG_TEST=PASS"
+      exit 0
+    fi
+    ;;
+  SCRIPT)
+    SCRIPT_RUNNER="${FREELANG_SCRIPT_RUNNER:-/home/kim/freelang-script/bin/fl-script-unified.js}"
+    if [[ -f "$SCRIPT_RUNNER" ]]; then
+      node "$SCRIPT_RUNNER" test "$TEST_ROOT" --allow-listed "$@"
+      echo "FREELANG_TEST=PASS"
+      exit 0
+    fi
+    ;;
+  AIA)
+    if [[ -x "$ROOT/tools/verify-aia-cold-boot.sh" ]]; then
+      "$ROOT/tools/verify-aia-cold-boot.sh"
+      echo "FREELANG_TEST=PASS"
+      exit 0
+    fi
+    ;;
+  FX)
+    if [[ -x "$ROOT/tests/run-tests.sh" ]]; then
+      (cd "$ROOT" && ./tests/run-tests.sh)
+      echo "FREELANG_TEST=PASS"
+      exit 0
+    fi
+    ;;
+esac
 
 if [[ ! -f "$RUNNER" ]]; then
   echo "FREELANG_TEST=BLOCKED"

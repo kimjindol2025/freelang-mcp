@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET_INPUT="${1:-.}"
+
+if [[ ! -d "$TARGET_INPUT" ]]; then
+  echo "PROJECT_DETECT=BLOCKED"
+  echo "CAUSE=directory not found: $TARGET_INPUT" >&2
+  exit 2
+fi
+
+ROOT="$(cd -- "$TARGET_INPUT" && pwd -P)"
+has_file() { [[ -f "$ROOT/$1" ]]; }
+has_glob() { find "$ROOT" -maxdepth 3 -type f -name "$1" -print -quit 2>/dev/null | grep -q .; }
+
+EXTENSIONS=()
+has_glob '*.fl' && EXTENSIONS+=(.fl)
+has_glob '*.fls' && EXTENSIONS+=(.fls)
+has_glob '*.flx' && EXTENSIONS+=(.flx)
+has_glob '*.aia' && EXTENSIONS+=(.aia)
+
+DIALECT="UNKNOWN"
+FAMILY="UNKNOWN"
+RUNNER="none"
+
+if has_file "tools/verify-aia-cold-boot.sh" || has_file "aia-seed/aia" || has_glob '*.aia'; then
+  DIALECT="AIA"
+  FAMILY="AIA"
+  [[ -x "$ROOT/tools/verify-aia-cold-boot.sh" ]] && RUNNER="$ROOT/tools/verify-aia-cold-boot.sh"
+elif has_file "fl-front-build.js" || has_file "web/fl-front-build.js" || has_glob '*.flx'; then
+  DIALECT="FRONT"
+  FAMILY="FRONT"
+  (has_file "server.fl" || has_file "web/server.fl") && FAMILY="FRONT/AFJ"
+  if has_file "fl-front-build.js"; then
+    RUNNER="$ROOT/fl-front-build.js"
+  elif has_file "web/fl-front-build.js"; then
+    RUNNER="$ROOT/web/fl-front-build.js"
+  fi
+elif has_file "freelang.json" || has_file "bin/fl-script-unified.js" || has_glob '*.fls'; then
+  DIALECT="SCRIPT"
+  FAMILY="SCRIPT"
+  has_file "bin/fl-script-unified.js" && RUNNER="$ROOT/bin/fl-script-unified.js"
+elif has_file "fl-test.sh" || has_file "fl-run.sh" || has_file "fx-std.fl"; then
+  DIALECT="FX"
+  FAMILY="FX"
+  has_file "fl-test.sh" && RUNNER="$ROOT/fl-test.sh"
+elif has_glob '*.fl'; then
+  DIALECT="AFJ"
+  FAMILY="AFJ"
+  if has_file "bootstrap.js"; then
+    RUNNER="$ROOT/bootstrap.js"
+  elif [[ -f "${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}" ]]; then
+    RUNNER="${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}"
+  fi
+fi
+
+TEST_ROOT="$ROOT/tests"
+TEST_FILES="$(find "$TEST_ROOT" -type f \( -name '*.test.fl' -o -name '*.test.flx' -o -name '*.test.fls' \) -print 2>/dev/null | sort | paste -sd, - || true)"
+
+printf 'PROJECT=%s\n' "$(basename "$ROOT")"
+printf 'ROOT=%s\n' "$ROOT"
+printf 'DIALECT=%s\n' "$DIALECT"
+printf 'FAMILY=%s\n' "$FAMILY"
+printf 'EXTENSIONS=%s\n' "${EXTENSIONS[*]:-none}"
+printf 'RUNNER=%s\n' "$RUNNER"
+printf 'TEST_ROOT=%s\n' "$TEST_ROOT"
+printf 'TEST_FILES=%s\n' "${TEST_FILES:-none}"

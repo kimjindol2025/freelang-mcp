@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+
+DETECT_OUTPUT="$($ROOT/scripts/fl-detect "$TARGET")"
+printf '%s\n' "$DETECT_OUTPUT"
+
+TARGET_ROOT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^ROOT=//p')"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+
+if git -C "$TARGET_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  if [[ -n "$(git -C "$TARGET_ROOT" status --short)" ]]; then
+    echo "GIT=dirty"
+  else
+    echo "GIT=clean"
+  fi
+else
+  echo "GIT=not-a-repository"
+fi
+
+RELEASE="UNKNOWN"
+if [[ -f "$TARGET_ROOT/CHANGELOG.md" ]]; then
+  RELEASE="$(sed -n 's/^## \(v[^ —]*\).*/\1/p' "$TARGET_ROOT/CHANGELOG.md" | head -1)"
+fi
+printf 'RELEASE=%s\n' "${RELEASE:-UNKNOWN}"
+
+set +e
+TEST_OUTPUT="$($ROOT/scripts/fl-test "$TARGET_ROOT" 2>&1)"
+TEST_CODE=$?
+set -e
+if [[ "$TEST_CODE" -eq 0 ]]; then
+  if grep -q '^FREELANG_TEST=PASS$' <<<"$TEST_OUTPUT"; then
+    echo "TEST=PASS"
+  else
+    echo "TEST=NOT_RUN"
+  fi
+else
+  echo "TEST=FAIL"
+fi
+
+case "$DIALECT" in
+  AIA)
+    if grep -q '^SELFHOST_SMOKE=.*PASS$' <<<"$TEST_OUTPUT"; then
+      echo "SELFHOST=PASS"
+    else
+      echo "SELFHOST=UNRESOLVED"
+    fi
+    if grep -q '^GOLDEN=.*PASS$' <<<"$TEST_OUTPUT" && \
+       grep -q '^ERRORS=.*PASS$' <<<"$TEST_OUTPUT" && \
+       grep -q '^DETERMINISTIC=PASS$' <<<"$TEST_OUTPUT"; then
+      echo "COLD_BOOT=PASS"
+    else
+      echo "COLD_BOOT=UNRESOLVED"
+    fi
+    ;;
+  FX) echo "SELFHOST=UNRESOLVED"; echo "COLD_BOOT=UNRESOLVED" ;;
+  *) echo "SELFHOST=NOT_APPLICABLE" ;;
+esac
