@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+
+if [[ ! -d "$TARGET" ]]; then
+  echo "INSPECT=BLOCKED"
+  echo "CAUSE=directory not found: $TARGET" >&2
+  exit 2
+fi
+
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+FAIL=0
+
+run_section() {
+  local name="$1"
+  shift
+  local output code
+  echo "--- $name ---"
+  set +e
+  output="$("$@" 2>&1)"
+  code=$?
+  set -e
+  printf '%s\n' "$output"
+  if [[ "$code" -ne 0 ]]; then
+    FAIL=1
+  fi
+}
+
+run_section DETECT "$TOOLS_ROOT/scripts/fl-detect" "$ROOT"
+run_section ROUTE "$TOOLS_ROOT/scripts/fl-route" "$ROOT"
+run_section DOCTOR "$TOOLS_ROOT/scripts/fl-doctor" "$ROOT"
+run_section STATUS "$TOOLS_ROOT/scripts/fl-status" "$ROOT"
+
+if [[ "$FAIL" -eq 0 ]]; then
+  echo "INSPECT=PASS"
+else
+  echo "INSPECT=FAIL"
+  exit 1
+fi

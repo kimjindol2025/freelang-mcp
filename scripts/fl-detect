@@ -51,6 +51,14 @@ elif has_glob '*.fl'; then
   FAMILY="AFJ"
   if has_file "bootstrap.js"; then
     RUNNER="$ROOT/bootstrap.js"
+  elif [[ -n "${FREELANG_AFJ_RUNNER:-}" ]]; then
+    RUNNER="$FREELANG_AFJ_RUNNER"
+  elif [[ -n "${FREELANG_AFJ_ROOT:-}" && -f "$FREELANG_AFJ_ROOT/bootstrap.js" ]]; then
+    RUNNER="$FREELANG_AFJ_ROOT/bootstrap.js"
+  elif [[ -f "/root/lang/freelang-afj/bootstrap.js" ]]; then
+    RUNNER="/root/lang/freelang-afj/bootstrap.js"
+  elif [[ -f "/root/freelang-afj/bootstrap.js" ]]; then
+    RUNNER="/root/freelang-afj/bootstrap.js"
   elif [[ -f "${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}" ]]; then
     RUNNER="${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}"
   fi

@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+
+if [[ ! -d "$TARGET" ]]; then
+  echo "INIT=BLOCKED"
+  echo "CAUSE=directory not found: $TARGET" >&2
+  exit 2
+fi
+
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+FREELANG_DIR="$ROOT/.freelang"
+mkdir -p "$FREELANG_DIR"
+
+FREELANG_JOURNAL_FILE="$FREELANG_DIR/worklog.md" \
+  "$TOOLS_ROOT/scripts/fl-journal" init >/dev/null
+
+DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
+PROJECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^PROJECT=//p')"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+
+printf 'PROJECT=%s\n' "$PROJECT"
+printf 'ROOT=%s\n' "$ROOT"
+printf 'DIALECT=%s\n' "$DIALECT"
+printf 'WORKSPACE=%s\n' "$FREELANG_DIR"
+printf 'JOURNAL=%s\n' "$FREELANG_DIR/worklog.md"
+echo "INIT=PASS"

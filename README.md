@@ -26,8 +26,11 @@ $HOME/.local/bin/fl-test
 ## 명령
 
 ```bash
+fl-tools init .
 fl-tools start .
+fl-tools inspect .
 fl-tools review .
+fl-tools report .
 fl-tools deploy .
 fl-tools test
 fl-tools check
@@ -41,6 +44,10 @@ fl-tools release-check
 fl-tools safe-push --help
 fl-test
 ```
+
+`init`은 프로젝트의 `.freelang/worklog.md` 작업 기록 공간을 만든다.
+`inspect`는 감지·라우팅·건강검진·상태를 한 번에 출력하고, `report`는 테스트와
+리뷰 결과를 완료 보고서 형식으로 출력한다.
 
 `fl-test`는 현재 프로젝트의 `tests/**/*.test.fl`을 자동 발견하고, AFJ
 런타임의 `check → run`과 `deftest`/`is`/`is=`/`run-tests` 결과를 검사한다.

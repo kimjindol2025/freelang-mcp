@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+
+if [[ ! -d "$TARGET" ]]; then
+  echo "REPORT=BLOCKED"
+  echo "CAUSE=directory not found: $TARGET" >&2
+  exit 2
+fi
+
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
+PROJECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^PROJECT=//p')"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+
+STATUS_OUTPUT=""
+STATUS_CODE=0
+set +e
+STATUS_OUTPUT="$($TOOLS_ROOT/scripts/fl-status "$ROOT" 2>&1)"
+STATUS_CODE=$?
+set -e
+
+REVIEW_OUTPUT=""
+REVIEW_CODE=0
+set +e
+REVIEW_OUTPUT="$($TOOLS_ROOT/scripts/fl-review "$ROOT" 2>&1)"
+REVIEW_CODE=$?
+set -e
+
+GIT_STATUS="not-a-repository"
+BRANCH="none"
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  BRANCH="$(git -C "$ROOT" branch --show-current)"
+  if [[ -n "$(git -C "$ROOT" status --short)" ]]; then
+    GIT_STATUS=dirty
+  else
+    GIT_STATUS=clean
+  fi
+fi
+
+TEST_STATUS="UNKNOWN"
+if grep -q '^TEST=PASS$' <<<"$STATUS_OUTPUT"; then
+  TEST_STATUS=PASS
+elif grep -q '^TEST=FAIL$' <<<"$STATUS_OUTPUT"; then
+  TEST_STATUS=FAIL
+elif grep -q '^TEST=NOT_RUN$' <<<"$STATUS_OUTPUT"; then
+  TEST_STATUS=NOT_RUN
+fi
+
+if [[ "$REVIEW_CODE" -eq 0 ]] && grep -q '^REVIEW=PASS$' <<<"$REVIEW_OUTPUT"; then
+  REVIEW_STATUS=PASS
+else
+  REVIEW_STATUS=FAIL
+fi
+
+cat <<EOF
+# FreeLang Tools Report
+
+PROJECT=$PROJECT
+ROOT=$ROOT
+DIALECT=$DIALECT
+RUNNER=$RUNNER
+BRANCH=$BRANCH
+GIT=$GIT_STATUS
+TEST=$TEST_STATUS
+REVIEW=$REVIEW_STATUS
+
+## Status
+
+$STATUS_OUTPUT
+
+## Review
+
+$REVIEW_OUTPUT
+EOF
+
+if [[ "$REVIEW_STATUS" == PASS && "$TEST_STATUS" == PASS ]]; then
+  echo "REPORT=PASS"
+else
+  echo "REPORT=FAIL"
+  exit 1
+fi

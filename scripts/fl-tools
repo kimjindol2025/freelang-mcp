@@ -10,6 +10,9 @@ FreeLang Tools — 공용 개발 CLI
 
 사용법:
   fl-tools start [경로]      작업 시작 컨텍스트·준비 상태 출력
+  fl-tools init [경로]      프로젝트 작업 기록 공간 초기화
+  fl-tools inspect [경로]   감지·라우팅·상태·건강검진 통합 출력
+  fl-tools report [경로]    테스트·리뷰 완료 보고서 출력
   fl-tools review [경로]     수정 내용 전체 검토
   fl-tools deploy [경로]     검토된 프로젝트 배포 계약 실행
   fl-tools test             FreeLang deftest 테스트 실행
@@ -32,6 +35,15 @@ shift || true
 case "$command_name" in
   start)
     exec "$ROOT/scripts/fl-start" "$@"
+    ;;
+  init)
+    exec "$ROOT/scripts/fl-init" "$@"
+    ;;
+  inspect)
+    exec "$ROOT/scripts/fl-inspect" "$@"
+    ;;
+  report)
+    exec "$ROOT/scripts/fl-report" "$@"
     ;;
   review)
     exec "$ROOT/scripts/fl-review" "$@"

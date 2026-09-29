@@ -6,11 +6,12 @@ TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
 TARGET_INPUT="${1:-.}"
 shift || true
 ROOT="$(cd -- "$TARGET_INPUT" && pwd -P)"
-RUNNER="${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}"
 TEST_ROOT="${FREELANG_TEST_ROOT:-$ROOT/tests}"
 
 DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
 DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+DETECTED_RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+RUNNER="${FREELANG_AFJ_RUNNER:-$DETECTED_RUNNER}"
 
 case "$DIALECT" in
   FRONT)
@@ -61,7 +62,14 @@ if [[ ! -d "$TEST_ROOT" ]]; then
   exit 0
 fi
 
-mapfile -t TEST_FILES < <(find "$TEST_ROOT" -type f -name '*.test.fl' -print | sort)
+TEST_LIST_FILE="$(mktemp)"
+OUTPUT_FILE=""
+cleanup() {
+  rm -f "$TEST_LIST_FILE" "$OUTPUT_FILE"
+}
+trap cleanup EXIT INT TERM
+find "$TEST_ROOT" -type f -name '*.test.fl' -print | sort > "$TEST_LIST_FILE"
+mapfile -t TEST_FILES < "$TEST_LIST_FILE"
 
 if [[ "${#TEST_FILES[@]}" -eq 0 ]]; then
   echo "FREELANG_TEST=NO_TESTS"
@@ -73,16 +81,16 @@ for test_file in "${TEST_FILES[@]}"; do
   echo "[fl-test] check $relative"
   node "$RUNNER" check "$test_file"
 
-  output_file="$(mktemp)"
-  trap 'rm -f "$output_file"' EXIT
+  rm -f "$OUTPUT_FILE"
+  OUTPUT_FILE="$(mktemp)"
   echo "[fl-test] run $relative"
-  if ! node "$RUNNER" run "$test_file" >"$output_file" 2>&1; then
-    cat "$output_file"
+  if ! node "$RUNNER" run "$test_file" >"$OUTPUT_FILE" 2>&1; then
+    cat "$OUTPUT_FILE"
     echo "FREELANG_TEST=FAIL"
     exit 1
   fi
-  cat "$output_file"
-  if ! grep -Eq '^Test Results: [0-9]+/[0-9]+ passed$' "$output_file" || grep -q 'FAILED' "$output_file"; then
+  cat "$OUTPUT_FILE"
+  if ! grep -Eq '^Test Results: [0-9]+/[0-9]+ passed$' "$OUTPUT_FILE" || grep -q 'FAILED' "$OUTPUT_FILE"; then
     echo "[fl-test] missing passing summary: $relative" >&2
     echo "FREELANG_TEST=FAIL"
     exit 1

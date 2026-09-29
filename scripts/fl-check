@@ -6,9 +6,11 @@ TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
 TARGET_INPUT="${1:-.}"
 shift || true
 ROOT="$(cd -- "$TARGET_INPUT" && pwd -P)"
-RUNNER="${FREELANG_AFJ_RUNNER:-/home/kim/kim/platform/freelang-afj/bootstrap.js}"
 
-DIALECT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT" | sed -n 's/^DIALECT=//p')"
+DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+DETECTED_RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+RUNNER="${FREELANG_AFJ_RUNNER:-$DETECTED_RUNNER}"
 
 if [[ "$DIALECT" != "AFJ" ]]; then
   echo "FREELANG_CHECK=DEFERRED"
@@ -23,7 +25,15 @@ if [[ ! -f "$RUNNER" ]]; then
   exit 2
 fi
 
-mapfile -t SOURCES < <(find "$ROOT/src" -type f -name '*.fl' -print 2>/dev/null | sort)
+SOURCE_LIST_FILE="$(mktemp)"
+cleanup() { rm -f "$SOURCE_LIST_FILE"; }
+trap cleanup EXIT INT TERM
+if [[ -d "$ROOT/src" ]]; then
+  find "$ROOT/src" -type f -name '*.fl' -print | sort > "$SOURCE_LIST_FILE"
+else
+  : > "$SOURCE_LIST_FILE"
+fi
+mapfile -t SOURCES < "$SOURCE_LIST_FILE"
 for source in "${SOURCES[@]}"; do
   echo "[fl-check] $source"
   node "$RUNNER" check "$source"
