@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+
+DETECT_OUTPUT="$("$TOOLS_ROOT/scripts/fl-detect" "$TARGET")"
+PROJECT_ROOT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^ROOT=//p')"
+PROJECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^PROJECT=//p')"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+
+case "$DIALECT" in
+  AIA) RUNTIME=native ;;
+  FRONT|AFJ|FX|SCRIPT) RUNTIME=FreeLang ;;
+  *) RUNTIME=UNKNOWN ;;
+esac
+
+ENTRYPOINT=none
+for candidate in \
+  tools/verify-aia-cold-boot.sh \
+  src/main.fl main.fl server.fl web/server.fl \
+  aia-seed/aia bin/fl-script-unified.js \
+  fl-front-build.js web/fl-front-build.js bootstrap.js; do
+  if [[ -e "$PROJECT_ROOT/$candidate" ]]; then
+    ENTRYPOINT="$PROJECT_ROOT/$candidate"
+    break
+  fi
+done
+
+TEST_COMMAND="fl-tools test $TARGET"
+CHECK_COMMAND="fl-tools check $TARGET"
+BUILD_COMMAND=none
+if [[ -f "$PROJECT_ROOT/package.json" ]]; then
+  if node -e 'const p=require(process.argv[1]); process.exit(p.scripts?.build ? 0 : 1)' "$PROJECT_ROOT/package.json" 2>/dev/null; then
+    BUILD_COMMAND="npm run build"
+  fi
+fi
+if [[ "$BUILD_COMMAND" == none && "$DIALECT" == FRONT ]]; then
+  BUILD_COMMAND="$RUNNER"
+fi
+
+DOCS=0
+for doc in README.md AGENTS.md STATUS.md ROADMAP.md CHANGELOG.md SPEC.airc LANGUAGE_LOCK.md; do
+  [[ -f "$PROJECT_ROOT/$doc" ]] && DOCS=$((DOCS + 1))
+done
+
+GIT=not-a-repository
+BRANCH=none
+if git -C "$PROJECT_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  BRANCH="$(git -C "$PROJECT_ROOT" branch --show-current)"
+  if [[ -n "$(git -C "$PROJECT_ROOT" status --short)" ]]; then GIT=dirty; else GIT=clean; fi
+fi
+
+DOCTOR_OUTPUT=""
+set +e
+DOCTOR_OUTPUT="$($TOOLS_ROOT/scripts/fl-doctor "$PROJECT_ROOT" 2>&1)"
+DOCTOR_CODE=$?
+set -e
+
+printf 'PROJECT=%s\n' "$PROJECT"
+printf 'LANGUAGE=%s\n' "$DIALECT"
+printf 'FAMILY=FreeLang\n'
+printf 'RUNTIME=%s\n' "$RUNTIME"
+printf 'ENTRYPOINT=%s\n' "$ENTRYPOINT"
+printf 'RUNNER=%s\n' "$RUNNER"
+printf 'TEST_COMMAND=%s\n' "$TEST_COMMAND"
+printf 'CHECK_COMMAND=%s\n' "$CHECK_COMMAND"
+printf 'BUILD_COMMAND=%s\n' "$BUILD_COMMAND"
+printf 'DOCUMENTS=%s\n' "$DOCS"
+printf 'GIT=%s\n' "$GIT"
+printf 'CURRENT_BRANCH=%s\n' "$BRANCH"
+if [[ "$DOCTOR_CODE" -eq 0 && "$DIALECT" != UNKNOWN && "$GIT" != not-a-repository ]]; then
+  echo "READY=YES"
+else
+  echo "READY=NO"
+  [[ "$DOCTOR_CODE" -ne 0 ]] && printf '%s\n' "$DOCTOR_OUTPUT" >&2
+  exit 1
+fi

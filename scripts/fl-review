@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+FAIL=0
+
+run_gate() {
+  local name="$1"
+  shift
+  local output code
+  set +e
+  output="$("$@" 2>&1)"
+  code=$?
+  set -e
+  printf '%s\n' "$output"
+  if [[ "$code" -eq 0 ]]; then
+    echo "$name=PASS"
+  else
+    echo "$name=FAIL"
+    FAIL=1
+  fi
+}
+
+run_gate CHECK "$TOOLS_ROOT/scripts/fl-check" "$ROOT"
+run_gate TEST "$TOOLS_ROOT/scripts/fl-test" "$ROOT"
+
+if [[ -f "$ROOT/package.json" ]] && node -e 'const p=require(process.argv[1]); process.exit(p.scripts?.lint ? 0 : 1)' "$ROOT/package.json" 2>/dev/null; then
+  run_gate LINT npm --prefix "$ROOT" run lint
+else
+  echo "LINT=NOT_APPLICABLE"
+fi
+
+if [[ -f "$ROOT/package.json" ]] && node -e 'const p=require(process.argv[1]); process.exit(p.scripts?.build ? 0 : 1)' "$ROOT/package.json" 2>/dev/null; then
+  run_gate BUILD npm --prefix "$ROOT" run build
+else
+  echo "BUILD=NOT_APPLICABLE"
+fi
+
+if git -C "$ROOT" diff --check; then
+  echo "DIFF_CHECK=PASS"
+else
+  echo "DIFF_CHECK=FAIL"
+  FAIL=1
+fi
+
+CHANGED="$(git -C "$ROOT" status --porcelain 2>/dev/null || true)"
+if printf '%s\n' "$CHANGED" | grep -Eq '(^| )(_app\.fl|dist/|build/|.*\.generated\.)'; then
+  echo "GENERATED_FILES=DIRTY"
+  FAIL=1
+else
+  echo "GENERATED_FILES=CLEAN"
+fi
+
+if printf '%s\n' "$CHANGED" | grep -Eq '(^| )(LANGUAGE_LOCK\.md|SPEC\.airc|.*CONTRACT.*)'; then
+  echo "CONTRACT_DRIFT=DETECTED"
+  FAIL=1
+else
+  echo "CONTRACT_DRIFT=0"
+fi
+
+echo "REGRESSION=$( [[ "$FAIL" -eq 0 ]] && echo PASS || echo FAIL )"
+if [[ "$FAIL" -eq 0 ]]; then
+  echo "REVIEW=PASS"
+else
+  echo "REVIEW=FAIL"
+  exit 1
+fi

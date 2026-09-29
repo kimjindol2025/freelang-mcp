@@ -2,6 +2,9 @@
   "name": "freelang-tools",
   "private": true,
   "scripts": {
+    "start": "./scripts/fl-start",
+    "review": "./scripts/fl-review",
+    "deploy": "./scripts/fl-deploy",
     "test": "./scripts/fl-test",
     "check": "./scripts/fl-check",
     "detect": "./scripts/fl-detect",

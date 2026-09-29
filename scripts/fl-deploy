@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+
+REVIEW_OUTPUT=""
+set +e
+REVIEW_OUTPUT="$($TOOLS_ROOT/scripts/fl-review "$ROOT" 2>&1)"
+REVIEW_CODE=$?
+set -e
+printf '%s\n' "$REVIEW_OUTPUT"
+if [[ "$REVIEW_CODE" -ne 0 ]] || ! grep -q '^REVIEW=PASS$' <<<"$REVIEW_OUTPUT"; then
+  echo "REVIEW=FAIL"
+  echo "DEPLOY=BLOCKED"
+  echo "CAUSE=review did not pass"
+  exit 3
+fi
+echo "REVIEW=PASS"
+
+DEPLOY_CONTRACT=none
+if [[ -x "$ROOT/.freelang/deploy.sh" ]]; then
+  DEPLOY_CONTRACT="$ROOT/.freelang/deploy.sh"
+elif [[ -x "$ROOT/scripts/deploy" ]]; then
+  DEPLOY_CONTRACT="$ROOT/scripts/deploy"
+elif [[ -f "$ROOT/package.json" ]]; then
+  PACKAGE_DEPLOY="$(node -e 'const p=require(process.argv[1]); process.stdout.write(p.scripts?.deploy || "")' "$ROOT/package.json" 2>/dev/null || true)"
+  if [[ -n "$PACKAGE_DEPLOY" && "$PACKAGE_DEPLOY" != *"fl-deploy"* && "$PACKAGE_DEPLOY" != *"fl-tools deploy"* ]]; then
+    DEPLOY_CONTRACT="npm --prefix $ROOT run deploy"
+  fi
+fi
+
+SMOKE_CONTRACT=none
+if [[ -x "$ROOT/.freelang/smoke.sh" ]]; then
+  SMOKE_CONTRACT="$ROOT/.freelang/smoke.sh"
+elif [[ -x "$ROOT/scripts/smoke" ]]; then
+  SMOKE_CONTRACT="$ROOT/scripts/smoke"
+fi
+
+if [[ "$DEPLOY_CONTRACT" == none ]]; then
+  echo "DEPLOY=BLOCKED"
+  echo "CAUSE=no project deploy contract (.freelang/deploy.sh, scripts/deploy, or package deploy)"
+  exit 2
+fi
+if [[ "$SMOKE_CONTRACT" == none ]]; then
+  echo "DEPLOY=BLOCKED"
+  echo "CAUSE=no project smoke contract (.freelang/smoke.sh or scripts/smoke)"
+  exit 2
+fi
+echo "DEPLOY_TARGET=$ROOT"
+set +e
+if [[ "$DEPLOY_CONTRACT" == npm\ * ]]; then
+  (cd "$ROOT" && npm run deploy)
+else
+  (cd "$ROOT" && "$DEPLOY_CONTRACT")
+fi
+DEPLOY_CODE=$?
+set -e
+if [[ "$DEPLOY_CODE" -ne 0 ]]; then
+  echo "DEPLOY=FAIL"
+  exit "$DEPLOY_CODE"
+fi
+echo "DEPLOY=PASS"
+
+set +e
+(cd "$ROOT" && "$SMOKE_CONTRACT")
+SMOKE_CODE=$?
+set -e
+if [[ "$SMOKE_CODE" -eq 0 ]]; then
+  echo "SMOKE=PASS"
+else
+  echo "SMOKE=FAIL"
+  exit "$SMOKE_CODE"
+fi
+
+ARTIFACT_HASH=NONE
+for artifact in "$ROOT/.freelang/artifact" "$ROOT/dist" "$ROOT/build"; do
+  if [[ -e "$artifact" ]]; then
+    if [[ -f "$artifact" ]]; then ARTIFACT_HASH="$(sha256sum "$artifact" | awk '{print $1}')"; else ARTIFACT_HASH="$(find "$artifact" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"; fi
+    break
+  fi
+done
+echo "ARTIFACT_HASH=$ARTIFACT_HASH"
+if [[ -x "$ROOT/.freelang/rollback.sh" || -x "$ROOT/scripts/rollback" ]]; then
+  echo "ROLLBACK_AVAILABLE=YES"
+else
+  echo "ROLLBACK_AVAILABLE=NO"
+fi

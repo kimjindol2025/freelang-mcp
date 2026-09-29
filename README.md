@@ -5,6 +5,9 @@ FreeLang 프로젝트에서 공통으로 사용하는 개발자 CLI와 테스트
 ## 명령
 
 ```bash
+fl-tools start .
+fl-tools review .
+fl-tools deploy .
 fl-tools test
 fl-tools check
 fl-tools detect .
@@ -53,6 +56,17 @@ ln -s "$PWD/scripts/fl-test" "$HOME/.local/bin/fl-test"
 판별하고 현재 연결된 어댑터가 없으면 `BLOCKED` 또는 `UNRESOLVED`로 보고한다.
 
 ## 운영 명령
+
+표준 작업 흐름은 다음 세 명령이다.
+
+```text
+START → CODING → REVIEW → DEPLOY
+```
+
+- `start`: 프로젝트·방언·runtime·entrypoint·테스트·Git 상태를 확인한다.
+- `review`: check, test, build/lint, diff, 계약·생성물 검사를 묶는다.
+- `deploy`: review PASS 이후 프로젝트가 제공한 배포·smoke 계약만 실행한다.
+  배포 계약이 없으면 서버 구조를 추측하지 않고 `DEPLOY=BLOCKED`로 끝난다.
 
 - `route`: 프로젝트 방언·runner·개발/테스트 명령을 요약한다.
 - `doctor`: runner, Git, 테스트, 기본 manifest를 점검한다.
