@@ -8,7 +8,9 @@
     "report": "./scripts/fl-report",
     "pipeline": "./scripts/fl-pipeline",
     "mcp": "node mcp/stdio-server.mjs",
+    "mcp:http": "node mcp/http-server.mjs",
     "test:mcp": "node mcp/tests/mcp-client.mjs",
+    "test:mcp:http": "node mcp/tests/http-client.mjs",
     "handoff": "./scripts/fl-handoff",
     "evidence": "./scripts/fl-evidence --json",
     "adapter": "./scripts/fl-adapter list",
@@ -24,5 +26,8 @@
     "doctor": "./scripts/fl-doctor",
     "release-check": "./scripts/fl-release-check",
     "test:deploy-fixture": "./tests/deploy-fixture/run.sh"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.2.0"
   }
 }

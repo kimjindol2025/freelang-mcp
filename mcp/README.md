@@ -2,7 +2,7 @@
 
 ## 적용 규약
 
-1차 구현은 공식 MCP `2025-11-25` legacy handshake 규약을 지원한다.
+기존 stdio 전송은 공식 MCP `2025-11-25` legacy handshake 규약을 지원한다.
 
 - transport: stdio
 - framing: 줄 단위 UTF-8 JSON-RPC 2.0
@@ -10,27 +10,45 @@
 - supported operations: `ping`, `tools/list`, `tools/call`, `shutdown`, `exit`
 - server capability: `tools`
 - supported tool: `add`
-- not supported: Streamable HTTP, OAuth, resources, prompts, tasks, modern
-  `2026-07-28` per-request `_meta`/`server/discover`
+- not supported on this transport: OAuth, resources, prompts, tasks, modern
+  per-request `_meta`
+
+Streamable HTTP는 공식 MCP `2026-07-28` 규약으로 별도 지원한다.
+
+- endpoint: 단일 `POST /mcp`
+- lifecycle: stateless `server/discover`; `initialize`/session 없음
+- supported operations: `server/discover`, `tools/list`, `tools/call`
+- required metadata: `MCP-Protocol-Version`, `Mcp-Method`, `tools/call`의 `Mcp-Name`
+- response: JSON-RPC JSON response; notifications는 `202 Accepted`
+- security: bearer token, Origin allowlist, body size limit, loopback 기본 바인딩
+- TLS: `MCP_HTTP_TLS_CERT`와 `MCP_HTTP_TLS_KEY`를 함께 지정할 때만 활성화
+- excluded: OAuth discovery/flow, SSE long-lived subscriptions, resources, prompts,
+  tasks, files, DB, approval, remote app management
 
 공식 근거:
 
 - https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle
 - https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
 - https://modelcontextprotocol.io/specification/2025-11-25/server/tools
+- https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http
+- https://modelcontextprotocol.io/specification/2026-07-28/server/tools
 
-현재 구현은 modern `2026-07-28` 규약과 dual-era 호환을 주장하지 않는다.
+stdio와 HTTP는 서로 다른 lifecycle을 사용하며, 한 전송 안에서 handshake를
+혼합하지 않는다.
 
 ## 계층
 
 ```text
-MCP stdio/JSON-RPC
-  └─ mcp/stdio-server.mjs       연결 계층·요청 응답·lifecycle
-      ├─ mcp/registry.mjs        도구 등록·JSON Schema
-      ├─ mcp/policy.mjs          도구 허용·인자 구조 판정
-      ├─ mcp/runner.mjs          FreeLang Script 실행 어댑터
-      ├─ mcp/audit.mjs           비밀정보 없는 JSONL 실행 기록
-      └─ mcp/core/add.fls        실제 숫자 변환·검증·덧셈
+MCP stdio/JSON-RPC ──┐
+                      ├─ mcp/service.mjs   도구 호출·검증·감사·FreeLang 경계
+MCP Streamable HTTP ─┘
+      ├─ mcp/stdio-server.mjs       legacy 연결·lifecycle
+      ├─ mcp/http-server.mjs        modern HTTP·auth·Origin·body limit
+      ├─ mcp/registry.mjs            도구 등록·JSON Schema
+      ├─ mcp/policy.mjs              도구 허용·인자 구조 판정
+      ├─ mcp/runner.mjs              FreeLang Script 실행 어댑터
+      ├─ mcp/audit.mjs               비밀정보 없는 JSONL 실행 기록
+      └─ mcp/core/add.fls            실제 숫자 변환·검증·덧셈
 ```
 
 FreeLang Script 프로파일에는 stdin 스트림을 직접 읽는 안정적인 표준 API가
@@ -44,6 +62,29 @@ FreeLang Script 프로파일에는 stdin 스트림을 직접 읽는 안정적인
 FREELANG_SCRIPT_RUNNER=/root/freelang-script/bin/fl-script-unified.js \
   node mcp/stdio-server.mjs
 ```
+
+HTTP는 loopback과 bearer token을 명시해야 시작한다.
+
+```bash
+MCP_HTTP_BEARER_TOKEN=change-me \
+FREELANG_SCRIPT_RUNNER=/root/freelang-script/bin/fl-script-unified.js \
+  npm run mcp:http
+```
+
+기본값은 `127.0.0.1:41951/mcp`이며 다음 환경변수로 조정한다.
+
+```text
+MCP_HTTP_HOST
+MCP_HTTP_PORT
+MCP_HTTP_BEARER_TOKEN
+MCP_HTTP_ALLOWED_ORIGINS       # comma-separated exact origins
+MCP_HTTP_MAX_BODY_BYTES        # default 65536
+MCP_HTTP_TLS_CERT + MCP_HTTP_TLS_KEY
+```
+
+non-loopback 바인딩은 TLS 인증서와 키가 모두 없으면 시작하지 않는다. 외부
+공개는 기존 TLS reverse proxy가 실제로 upstream에 연결되는지 확인한 뒤에만
+가능하며, DNS·nginx·PM2 설정은 이 저장소가 변경하지 않는다.
 
 실행기 탐색은 `mcp/runner.mjs`의 `resolveRunner()`가 단일 기준으로 담당한다.
 `FREELANG_SCRIPT_RUNNER`가 설정되면 해당 경로만 확인하고, 없으면
@@ -77,6 +118,17 @@ npm run test:mcp
 서버 재시작 후 재연결·재호출을 검증한다. 실행기가 없으면 결과는
 `MCP_REQUEST_HANDLING=PASS`와 `MCP_INTEGRATION=BLOCKED`로 분리되며,
 FreeLang 계산 PASS로 보고하지 않는다.
+
+HTTP의 실제 wire 검증은 공식 TypeScript SDK client를 사용한다.
+
+```bash
+MCP_HTTP_BEARER_TOKEN=change-me \
+  npm run test:mcp:http
+```
+
+이 테스트는 `server/discover`로 `2026-07-28`을 고정하고 `tools/list` 후
+`tools/call(add)`를 수행한다. 자체 `curl` 검사는 오류·보안 거부 확인에만
+사용하고 SDK 호환 PASS의 근거로 사용하지 않는다.
 
 ## 다음 단계
 

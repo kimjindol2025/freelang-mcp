@@ -1,4 +1,5 @@
 export const PROTOCOL_VERSION = "2025-11-25";
+export const MODERN_PROTOCOL_VERSION = "2026-07-28";
 
 export const SERVER_INFO = Object.freeze({
   name: "freelang-mcp",

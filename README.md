@@ -48,6 +48,8 @@ fl-tools release-check
 fl-tools safe-push --help
 fl-test
 npm run test:mcp
+npm run mcp:http
+npm run test:mcp:http
 npm run test:v11
 npm run test:afj
 ```
@@ -63,8 +65,10 @@ npm run test:afj
 명시적으로 `FREELANG_ALLOW_DIRTY_DEPLOY=1`을 설정해야 한다.
 
 통합형 FreeLang MCP 기반은 [`mcp/README.md`](mcp/README.md)에 정리되어 있다.
-현재는 `2025-11-25` stdio legacy handshake와 FreeLang Script 기반 `add` 도구만
-지원한다. 실제 연결 검증은 `npm run test:mcp`로 실행한다.
+기존 `2025-11-25` stdio legacy handshake와 별도로 `2026-07-28` stateless
+Streamable HTTP `/mcp`를 지원한다. 실제 검증은 stdio에
+`npm run test:mcp`, 공식 MCP SDK 기반 HTTP 클라이언트에
+`npm run test:mcp:http`를 사용한다.
 
 테스트 계약은 세 흐름을 독립적으로 판정한다.
 
