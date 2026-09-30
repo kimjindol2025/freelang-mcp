@@ -86,8 +86,9 @@ npm run test:afj
 `node <runner> run <file>` 순서로 실행하고, `Test Results: N/N passed`가 없거나
 실행기가 실패하면 `FAIL`로 판정한다. v11 런너 탐색 순서는
 `FREELANG_V11_BOOTSTRAP`, `FREELANG_V11_ROOT/bootstrap.js`, 로컬 v11
-기본 경로다. AFJ 런너 탐색 순서는 `FREELANG_AFJ_RUNNER`, 프로젝트의
-`bootstrap.js`, `FREELANG_AFJ_ROOT/bootstrap.js`, 설치 기본 경로다.
+기본 경로다. AFJ 런너 탐색 순서는 `FREELANG_AFJ_RUNNER`, 명시한
+`FREELANG_AFJ_ROOT/bootstrap.js`, 설치 기본 경로다. 프로젝트 루트의 임의
+`bootstrap.js`는 AFJ 런너로 자동 선택하지 않는다.
 
 AFJ 런너의 설치 기본 경로는 다음과 같다.
 

@@ -50,14 +50,17 @@ export function runAdd(a, b, options = {}) {
     return { ok: false, error: { code: "FREELANG_EXECUTION_ERROR", message: result.error.message } };
   }
   const envelope = parseLastJson(result.stdout);
+  if (result.status !== 0) {
+    if (envelope && envelope.ok === false && envelope.error) {
+      return { ok: false, error: envelope.error };
+    }
+    return { ok: false, error: { code: "FREELANG_EXECUTION_ERROR", message: "FreeLang Script execution failed" } };
+  }
   if (envelope && envelope.ok === true && typeof envelope.result === "number") {
     return { ok: true, result: envelope.result };
   }
   if (envelope && envelope.ok === false && envelope.error) {
     return { ok: false, error: envelope.error };
-  }
-  if (result.status !== 0) {
-    return { ok: false, error: { code: "FREELANG_EXECUTION_ERROR", message: "FreeLang Script execution failed" } };
   }
   return { ok: false, error: { code: "FREELANG_INVALID_RESULT", message: "FreeLang Script returned an invalid result" } };
 }

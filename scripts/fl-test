@@ -40,10 +40,6 @@ resolve_afj_runner() {
     printf '%s\n' "$FREELANG_AFJ_RUNNER"
     return
   fi
-  if [[ -f "$ROOT/bootstrap.js" ]]; then
-    printf '%s\n' "$ROOT/bootstrap.js"
-    return
-  fi
   if [[ -n "${FREELANG_AFJ_ROOT:-}" && -f "$FREELANG_AFJ_ROOT/bootstrap.js" ]]; then
     printf '%s\n' "$FREELANG_AFJ_ROOT/bootstrap.js"
     return
@@ -58,6 +54,13 @@ resolve_afj_runner() {
     fi
   done
   printf '%s\n' "/home/kim/kim/platform/freelang-afj/bootstrap.js"
+}
+
+EXPLICIT_TEST_LIST_FILE=""
+EXPLICIT_OUTPUT_FILE=""
+cleanup_explicit() {
+  [[ -z "${EXPLICIT_TEST_LIST_FILE:-}" ]] || rm -f -- "$EXPLICIT_TEST_LIST_FILE"
+  [[ -z "${EXPLICIT_OUTPUT_FILE:-}" ]] || rm -f -- "$EXPLICIT_OUTPUT_FILE"
 }
 
 run_explicit_suite() {
@@ -80,9 +83,7 @@ run_explicit_suite() {
   fi
 
   test_list_file="$(mktemp)"
-  cleanup_explicit() {
-    rm -f "${test_list_file:-}" "${output_file:-}"
-  }
+  EXPLICIT_TEST_LIST_FILE="$test_list_file"
   trap cleanup_explicit EXIT INT TERM
   find "$TEST_ROOT" -type f -name '*.test.fl' -print | sort > "$test_list_file"
   mapfile -t TEST_FILES < "$test_list_file"
@@ -103,6 +104,7 @@ run_explicit_suite() {
 
     rm -f "$output_file"
     output_file="$(mktemp)"
+    EXPLICIT_OUTPUT_FILE="$output_file"
     echo "[fl-test:$kind] run $relative"
     if ! node "$runner" run "$test_file" >"$output_file" 2>&1; then
       cat "$output_file"
@@ -111,7 +113,12 @@ run_explicit_suite() {
       return 1
     fi
     cat "$output_file"
-    if ! grep -Eq '^Test Results: [0-9]+/[0-9]+ passed$' "$output_file" || grep -q 'FAILED' "$output_file"; then
+    summary_line="$(grep -E '^Test Results: [0-9]+/[0-9]+ passed$' "$output_file" | tail -n 1 || true)"
+    passed="${summary_line#Test Results: }"
+    passed="${passed%%/*}"
+    total="${summary_line#*/}"
+    total="${total% passed}"
+    if [[ -z "$summary_line" || "$passed" != "$total" ]] || grep -q 'FAILED' "$output_file"; then
       echo "[fl-test:$kind] missing passing summary: $relative" >&2
       echo "$marker=FAIL"
       echo "FREELANG_TEST=FAIL"
@@ -138,6 +145,9 @@ esac
 DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
 DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
 DETECTED_RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+if [[ "$DIALECT" == "AFJ" && -z "${FREELANG_AFJ_RUNNER:-}" && "$DETECTED_RUNNER" == "$ROOT/bootstrap.js" ]]; then
+  DETECTED_RUNNER=""
+fi
 RUNNER="${FREELANG_AFJ_RUNNER:-$DETECTED_RUNNER}"
 
 case "$DIALECT" in
@@ -238,7 +248,12 @@ for test_file in "${TEST_FILES[@]}"; do
     exit 1
   fi
   cat "$OUTPUT_FILE"
-  if ! grep -Eq '^Test Results: [0-9]+/[0-9]+ passed$' "$OUTPUT_FILE" || grep -q 'FAILED' "$OUTPUT_FILE"; then
+  SUMMARY_LINE="$(grep -E '^Test Results: [0-9]+/[0-9]+ passed$' "$OUTPUT_FILE" | tail -n 1 || true)"
+  PASSED="${SUMMARY_LINE#Test Results: }"
+  PASSED="${PASSED%%/*}"
+  TOTAL="${SUMMARY_LINE#*/}"
+  TOTAL="${TOTAL% passed}"
+  if [[ -z "$SUMMARY_LINE" || "$PASSED" != "$TOTAL" ]] || grep -q 'FAILED' "$OUTPUT_FILE"; then
     echo "[fl-test] missing passing summary: $relative" >&2
     echo "FREELANG_TEST=FAIL"
     exit 1
