@@ -5,15 +5,18 @@ import { spawnSync } from "node:child_process";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const SCRIPT_FILE = path.join(ROOT, "mcp", "core", "add.fls");
 
-function resolveRunner() {
-  const candidates = [
-    process.env.FREELANG_SCRIPT_RUNNER,
-    process.env.FREELANG_SCRIPT_ROOT ? path.join(process.env.FREELANG_SCRIPT_ROOT, "bin", "fl-script-unified.js") : null,
+export function runnerCandidates(env = process.env) {
+  if (env.FREELANG_SCRIPT_RUNNER) return [env.FREELANG_SCRIPT_RUNNER];
+  return [
+    env.FREELANG_SCRIPT_ROOT ? path.join(env.FREELANG_SCRIPT_ROOT, "bin", "fl-script-unified.js") : null,
     path.join(ROOT, "..", "freelang-script", "bin", "fl-script-unified.js"),
     "/root/freelang-script/bin/fl-script-unified.js",
     "/root/lang/freelang-script/bin/fl-script-unified.js"
   ].filter(Boolean);
-  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+}
+
+export function resolveRunner(env = process.env) {
+  return runnerCandidates(env).find((candidate) => fs.existsSync(candidate)) || null;
 }
 
 function parseLastJson(stdout) {
@@ -33,13 +36,17 @@ export function runAdd(a, b, options = {}) {
   if (!runner) {
     return { ok: false, error: { code: "FREELANG_RUNNER_UNAVAILABLE", message: "FreeLang Script runner not found" } };
   }
+  const timeoutMs = options.timeoutMs || Number(process.env.FREELANG_SCRIPT_TIMEOUT_MS || 15000);
   const result = spawnSync(process.execPath, [runner, "run", SCRIPT_FILE, "--", String(a), String(b)], {
     cwd: options.cwd || ROOT,
     encoding: "utf8",
-    timeout: options.timeoutMs || 5000,
+    timeout: timeoutMs,
     maxBuffer: 1024 * 1024
   });
   if (result.error) {
+    if (result.error.code === "ETIMEDOUT") {
+      return { ok: false, error: { code: "FREELANG_EXECUTION_TIMEOUT", message: `FreeLang Script execution timed out after ${timeoutMs}ms` } };
+    }
     return { ok: false, error: { code: "FREELANG_EXECUTION_ERROR", message: result.error.message } };
   }
   const envelope = parseLastJson(result.stdout);

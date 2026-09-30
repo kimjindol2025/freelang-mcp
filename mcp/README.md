@@ -45,6 +45,14 @@ FREELANG_SCRIPT_RUNNER=/root/freelang-script/bin/fl-script-unified.js \
   node mcp/stdio-server.mjs
 ```
 
+실행기 탐색은 `mcp/runner.mjs`의 `resolveRunner()`가 단일 기준으로 담당한다.
+`FREELANG_SCRIPT_RUNNER`가 설정되면 해당 경로만 확인하고, 없으면
+`FREELANG_SCRIPT_ROOT/bin/fl-script-unified.js`와 로컬 공통 경로를 순서대로
+탐색한다. 실행기 부재는 MCP 응답 타임아웃으로 숨기지 않고
+`FREELANG_RUNNER_UNAVAILABLE`로 즉시 반환한다. 실행 시간 제한은
+`FREELANG_SCRIPT_TIMEOUT_MS`로 조정하며 기본값은 15000ms이고, 초과 시
+`FREELANG_EXECUTION_TIMEOUT`으로 구분한다.
+
 실행 기록 기본 위치:
 
 ```text
@@ -62,8 +70,13 @@ npm run test:mcp
 ```
 
 이 테스트는 서버를 자식 프로세스로 실행하는 실제 stdio MCP 클라이언트다.
+요청 처리 테스트는 실행기 없이도 실행하며 `null`, 배열, 원시값, 잘못된 객체,
+초기화 전 도구 접근, `initialized` 단독 알림, 정상 notification 무응답과
+정리 동작을 검증한다. 실행기가 발견되면 별도로 실제 FreeLang Script를 통해
 연결, 도구 조회, `add(2,3)`, 잘못된 입력, 없는 도구, 연속 request ID 기록,
-서버 재시작 후 재연결·재호출을 검증한다.
+서버 재시작 후 재연결·재호출을 검증한다. 실행기가 없으면 결과는
+`MCP_REQUEST_HANDLING=PASS`와 `MCP_INTEGRATION=BLOCKED`로 분리되며,
+FreeLang 계산 PASS로 보고하지 않는다.
 
 ## 다음 단계
 
