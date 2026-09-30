@@ -36,6 +36,16 @@ Streamable HTTP는 공식 MCP `2026-07-28` 규약으로 별도 지원한다.
 stdio와 HTTP는 서로 다른 lifecycle을 사용하며, 한 전송 안에서 handshake를
 혼합하지 않는다.
 
+## 등록된 FreeLang 도구
+
+| 이름 | 설명 | 입력 | 성공 결과 | 오류 |
+| --- | --- | --- | --- | --- |
+| `add` | FreeLang Script로 두 숫자를 더한다 | 객체 `{ "a": number, "b": number }` (두 필드 필수, 추가 필드 불허, 유한한 숫자) | `content[0].text`와 `structuredContent.result`에 계산 결과 | 잘못된 입력 `INVALID_INPUT`, 실행기 부재 `FREELANG_RUNNER_UNAVAILABLE`, 실행 실패 `FREELANG_EXECUTION_ERROR` 또는 `FREELANG_INVALID_RESULT` |
+
+현재 등록 목록은 `add` 하나다. MCP 호스트는 JSON 입력 형식을 확인하고,
+`mcp/core/add.fls`가 전달받은 값의 숫자 변환과 덧셈을 실제로 수행한다.
+임의 코드·셸 명령 실행 도구는 등록하지 않는다.
+
 ## 계층
 
 ```text
@@ -52,9 +62,9 @@ MCP Streamable HTTP ─┘
 ```
 
 FreeLang Script 프로파일에는 stdin 스트림을 직접 읽는 안정적인 표준 API가
-확인되지 않았다. 따라서 `mcp/stdio-server.mjs`만 stdio 경계 어댑터로 두고,
-계산과 입력 숫자 검증은 `mcp/core/add.fls`에서 수행한다. 이 어댑터는 MCP
-프레이밍과 FreeLang 런너 호출 외의 도구 업무를 맡지 않는다.
+확인되지 않았다. 따라서 `mcp/stdio-server.mjs`를 stdio 경계 어댑터로 두고,
+호스트에서 MCP 입력 형식을 검사한 뒤 `mcp/core/add.fls`에서 숫자 변환을
+재확인하고 계산한다. 어댑터는 MCP 프레이밍과 FreeLang 런너 호출을 맡는다.
 
 ## 실행
 

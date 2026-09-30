@@ -5,7 +5,7 @@ export const SERVER_INFO = Object.freeze({
   name: "freelang-mcp",
   title: "FreeLang MCP",
   version: "0.1.0",
-  description: "MCP stdio server backed by FreeLang Script"
+  description: "MCP server backed by FreeLang Script"
 });
 
 const ADD_TOOL = Object.freeze({

@@ -21,5 +21,8 @@ export function validateArguments(argumentsValue) {
   if (keys.some((key) => key !== "a" && key !== "b")) {
     return { ok: false, code: "INVALID_INPUT", message: "arguments may only contain a and b" };
   }
+  if (!Number.isFinite(argumentsValue.a) || !Number.isFinite(argumentsValue.b)) {
+    return { ok: false, code: "INVALID_INPUT", message: "a and b must be numbers" };
+  }
   return { ok: true };
 }

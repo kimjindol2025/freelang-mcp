@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { resolveRunner } from "../runner.mjs";
+import { resolveRunner, runAdd } from "../runner.mjs";
 
 const ROOT = path.resolve(new URL("../..", import.meta.url).pathname);
 const SERVER = path.join(ROOT, "mcp", "stdio-server.mjs");
@@ -201,8 +201,14 @@ async function runIntegrationTests(runner) {
   const listed = await first.request({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
   assert.deepEqual(listed.result.tools.map((tool) => tool.name), ["add"]);
   assert.deepEqual(listed.result.tools[0].inputSchema.required, ["a", "b"]);
+  assert.equal(listed.result.tools[0].inputSchema.additionalProperties, false);
+  assert.equal(listed.result.tools[0].inputSchema.properties.a.type, "number");
+  assert.equal(listed.result.tools[0].inputSchema.properties.b.type, "number");
 
-  assertAddResponse(await first.request({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "add", arguments: { a: 2, b: 3 } } }), 3, 5);
+  const addResponse = await first.request({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "add", arguments: { a: 2, b: 3 } } });
+  const direct = runAdd(2, 3);
+  assert.equal(direct.ok, true, JSON.stringify(direct));
+  assertAddResponse(addResponse, 3, direct.result);
   const invalid = await first.request({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "add", arguments: { a: "two", b: 3 } } });
   assert.equal(invalid.result.isError, true);
   assert.match(invalid.result.content[0].text, /numbers/);
@@ -210,6 +216,16 @@ async function runIntegrationTests(runner) {
   const unknown = await first.request({ jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "missing", arguments: {} } });
   assert.equal(unknown.error.code, -32602);
   assertAddResponse(await first.request({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "add", arguments: { a: 0, b: 0 } } }), 7, 0);
+  for (const [id, argumentsValue] of [[8, { a: "2", b: 3 }], [9, { a: 2 }], [12, { a: 2, b: 3, extra: 1 }]]) {
+    const invalidInput = await first.request({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "add", arguments: argumentsValue } });
+    assert.equal(invalidInput.result.isError, true);
+    assert.equal(invalidInput.result.structuredContent.error.code, "INVALID_INPUT");
+  }
+  const overflow = await first.request({ jsonrpc: "2.0", id: 13, method: "tools/call", params: { name: "add", arguments: { a: 1e308, b: 1e308 } } });
+  const directOverflow = runAdd(1e308, 1e308);
+  assert.equal(directOverflow.ok, false);
+  assert.equal(overflow.result.isError, true);
+  assert.equal(overflow.result.structuredContent.error.code, directOverflow.error.code);
   await first.close();
 
   const second = startServer(runner, logFile);
@@ -219,7 +235,7 @@ async function runIntegrationTests(runner) {
   await second.close();
 
   const records = fs.readFileSync(logFile, "utf8").trim().split(/\r?\n/).map((line) => JSON.parse(line));
-  assert.deepEqual(records.map((record) => record.requestId), [3, 4, 5, 6, 7, 11]);
+  assert.deepEqual(records.map((record) => record.requestId), [3, 4, 5, 6, 7, 8, 9, 12, 13, 11]);
   for (const record of records) {
     assert.equal(record.toolName === "add" || record.toolName === "missing", true);
     assert.equal(typeof record.success, "boolean");
@@ -227,12 +243,14 @@ async function runIntegrationTests(runner) {
     assert.equal(Object.prototype.hasOwnProperty.call(record, "arguments"), false);
   }
   assert.equal(records.filter((record) => record.success).length, 4);
-  assert.equal(records.filter((record) => !record.success).length, 2);
+  assert.equal(records.filter((record) => !record.success).length, 6);
   console.log("MCP_CLIENT_INTEGRATION=PASS");
   console.log("MCP_PROTOCOL=2025-11-25");
   console.log("MCP_CALL_RESULT=5");
   console.log("MCP_RECONNECT=PASS");
   console.log("MCP_AUDIT_CORRELATION=PASS");
+  console.log("MCP_TOOL_COVERAGE=PASS");
+  console.log("MCP_FREELANG_MATCH=PASS");
 }
 
 const runner = resolveRunner();
