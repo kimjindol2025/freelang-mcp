@@ -57,7 +57,7 @@ export function handleToolCall(request, cwd) {
 
   const result = toolName === "add"
     ? runAdd(args.a, args.b, { cwd })
-    : runProjectTool(toolName, cwd, validation.project);
+    : runProjectTool(toolName, cwd, validation);
   if (toolName !== "add") {
     if (!result.ok) {
       recordTool(request, cwd, toolName, false, startedAt, result.error.code);

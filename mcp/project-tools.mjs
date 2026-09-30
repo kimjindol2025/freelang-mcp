@@ -6,11 +6,29 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const MAX_OUTPUT_BYTES = 64 * 1024;
 const TIMEOUT_MS = 60_000;
 
-const COMMANDS = Object.freeze({
-  status: "fl-status",
-  check: "fl-check",
-  test: "fl-test"
+const PROJECT_COMMANDS = Object.freeze({
+  start: { script: "fl-start" },
+  inspect: { script: "fl-inspect" },
+  review: { script: "fl-review" },
+  report: { script: "fl-report" },
+  detect: { script: "fl-detect" },
+  status: { script: "fl-status" },
+  check: { script: "fl-check" },
+  test: { script: "fl-test", args: () => ["--auto"] },
+  route: { script: "fl-route" },
+  doctor: { script: "fl-doctor" },
+  release_check: { script: "fl-release-check" },
+  evidence: { script: "fl-evidence", args: () => ["--json"] },
+  adapter: { script: "fl-adapter", args: () => ["list"] },
+  handoff: { script: "fl-handoff", mutating: true },
+  init: { script: "fl-init", mutating: true },
+  pipeline: { script: "fl-pipeline", mutating: true },
+  journal: { script: "fl-journal", mutating: true },
+  safe_push: { script: "fl-safe-push", mutating: true, gitScoped: true },
+  session_status: { script: "fl-session", args: () => ["status"], session: true }
 });
+
+export const PROJECT_TOOL_NAMES = Object.freeze(Object.keys(PROJECT_COMMANDS));
 
 function resolveProject(cwd, project = ".") {
   if (typeof project !== "string" || project.length === 0 || project.includes("\0")) {
@@ -37,16 +55,45 @@ function trimOutput(value) {
   return `${output.slice(0, MAX_OUTPUT_BYTES)}\n[output truncated]`;
 }
 
-export function runProjectTool(name, cwd, project = ".") {
-  const command = COMMANDS[name];
-  if (!command) return { ok: false, error: { code: "UNKNOWN_PROJECT_TOOL", message: `unknown project tool: ${name}` } };
-  const target = resolveProject(cwd, project);
-  if (!target.ok) return target;
+function commandArgs(name, definition, target, options) {
+  if (name === "journal") {
+    const operation = options.operation || "show";
+    if (operation === "add") return ["add", options.message];
+    return [operation];
+  }
+  if (name === "pipeline") return [target.resolved];
+  if (name === "safe_push") return options.confirm === true ? ["--push"] : [];
+  return [...(definition.args ? definition.args(options) : []), ...(definition.session ? [] : [target.resolved])];
+}
 
-  const script = path.join(ROOT, "scripts", command);
-  const args = name === "test" ? ["--auto", target.resolved] : [target.resolved];
+export function projectToolDefinition(name) {
+  return PROJECT_COMMANDS[name] || null;
+}
+
+export function runProjectTool(name, cwd, options = {}) {
+  const definition = PROJECT_COMMANDS[name];
+  if (!definition) return { ok: false, error: { code: "UNKNOWN_PROJECT_TOOL", message: `unknown project tool: ${name}` } };
+  const target = resolveProject(cwd, options.project || ".");
+  if (!target.ok) return target;
+  const journalReadOnly = name === "journal" && (options.operation || "show") === "show";
+  if (definition.mutating && !journalReadOnly && options.confirm !== true) {
+    return { ok: false, project: target.project, error: { code: "APPROVAL_REQUIRED", message: `${name} requires confirm=true` } };
+  }
+  if (name === "journal" && options.operation === "add" && typeof options.message !== "string") {
+    return { ok: false, project: target.project, error: { code: "INVALID_INPUT", message: "journal add requires message" } };
+  }
+  if (name === "journal" && !["show", "init", "add"].includes(options.operation || "show")) {
+    return { ok: false, project: target.project, error: { code: "INVALID_INPUT", message: "journal operation must be show, init, or add" } };
+  }
+  if (name === "pipeline" && options.deploy === true) {
+    return { ok: false, project: target.project, error: { code: "DEPLOY_NOT_EXPOSED", message: "deploy is intentionally not exposed through MCP" } };
+  }
+
+  const script = path.join(ROOT, "scripts", definition.script);
+  const args = commandArgs(name, definition, target, options);
+  const executionCwd = definition.gitScoped || definition.session || name === "journal" ? target.resolved : ROOT;
   const result = spawnSync(script, args, {
-    cwd: ROOT,
+    cwd: executionCwd,
     env: process.env,
     encoding: "utf8",
     timeout: TIMEOUT_MS,

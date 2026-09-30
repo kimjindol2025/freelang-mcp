@@ -1,5 +1,10 @@
+const PROJECT_TOOLS = new Set([
+  "start", "inspect", "review", "report", "detect", "status", "check", "test", "route", "doctor",
+  "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "safe_push", "session_status"
+]);
+
 export function authorizeTool(name) {
-  if (["add", "status", "check", "test"].includes(name)) {
+  if (name === "add" || PROJECT_TOOLS.has(name)) {
     return { allowed: true, approvalRequired: false };
   }
   return {
@@ -33,11 +38,24 @@ export function validateProjectArguments(argumentsValue) {
     return { ok: false, code: "INVALID_INPUT", message: "arguments must be an object" };
   }
   const keys = Object.keys(argumentsValue);
-  if (keys.some((key) => key !== "project")) {
-    return { ok: false, code: "INVALID_INPUT", message: "arguments may only contain project" };
+  const allowed = new Set(["project", "confirm", "operation", "message", "deploy"]);
+  if (keys.some((key) => !allowed.has(key))) {
+    return { ok: false, code: "INVALID_INPUT", message: "unsupported project tool argument" };
   }
   if (argumentsValue.project !== undefined && (typeof argumentsValue.project !== "string" || argumentsValue.project.length === 0)) {
     return { ok: false, code: "INVALID_INPUT", message: "project must be a non-empty relative path" };
   }
-  return { ok: true, project: argumentsValue.project || "." };
+  if (argumentsValue.confirm !== undefined && typeof argumentsValue.confirm !== "boolean") {
+    return { ok: false, code: "INVALID_INPUT", message: "confirm must be boolean" };
+  }
+  if (argumentsValue.operation !== undefined && typeof argumentsValue.operation !== "string") {
+    return { ok: false, code: "INVALID_INPUT", message: "operation must be a string" };
+  }
+  if (argumentsValue.message !== undefined && typeof argumentsValue.message !== "string") {
+    return { ok: false, code: "INVALID_INPUT", message: "message must be a string" };
+  }
+  if (argumentsValue.deploy !== undefined && typeof argumentsValue.deploy !== "boolean") {
+    return { ok: false, code: "INVALID_INPUT", message: "deploy must be boolean" };
+  }
+  return { ok: true, ...argumentsValue, project: argumentsValue.project || "." };
 }

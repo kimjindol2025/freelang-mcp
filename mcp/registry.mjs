@@ -38,7 +38,11 @@ const ADD_TOOL = Object.freeze({
 const PROJECT_TOOL_INPUT = Object.freeze({
   type: "object",
   properties: Object.freeze({
-    project: Object.freeze({ type: "string", description: "Project path relative to the MCP workspace; defaults to ." })
+    project: Object.freeze({ type: "string", description: "Project path relative to the MCP workspace; defaults to ." }),
+    confirm: Object.freeze({ type: "boolean", description: "Required for state-changing tools." }),
+    operation: Object.freeze({ type: "string", enum: Object.freeze(["show", "init", "add"]) }),
+    message: Object.freeze({ type: "string" }),
+    deploy: Object.freeze({ type: "boolean", description: "Deployment is not exposed through MCP." })
   }),
   additionalProperties: false
 });
@@ -69,14 +73,13 @@ function projectTool(name, title, description) {
   });
 }
 
-const STATUS_TOOL = projectTool("status", "FreeLang Status", "Inspect project dialect, runner, Git state, and test status.");
-const CHECK_TOOL = projectTool("check", "FreeLang Check", "Run the registered FreeLang syntax and contract checks for a project.");
-const TEST_TOOL = projectTool("test", "FreeLang Test", "Run the registered FreeLang test suite for a project.");
+const PROJECT_TOOLS = PROJECT_TOOL_NAMES.map((name) => projectTool(name, `FreeLang ${name}`, `Run the registered ${name} FreeLang Tools operation.`));
 
 export function listTools() {
-  return [ADD_TOOL, STATUS_TOOL, CHECK_TOOL, TEST_TOOL];
+  return [ADD_TOOL, ...PROJECT_TOOLS];
 }
 
 export function getTool(name) {
   return listTools().find((tool) => tool.name === name) || null;
 }
+import { PROJECT_TOOL_NAMES } from "./project-tools.mjs";

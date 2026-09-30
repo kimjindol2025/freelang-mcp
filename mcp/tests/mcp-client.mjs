@@ -179,7 +179,11 @@ async function runRequestHandlingTests() {
     assert.equal(initialized.result.protocolVersion, "2025-11-25");
     await expectNoResponse(server, { jsonrpc: "2.0", method: "notifications/initialized" });
     const listed = await server.request({ jsonrpc: "2.0", id: 6, method: "tools/list", params: {} });
-    assert.deepEqual(listed.result.tools.map((tool) => tool.name), ["add", "status", "check", "test"]);
+    const listedNames = listed.result.tools.map((tool) => tool.name);
+    assert.equal(listedNames.length, 20);
+    for (const name of ["add", "start", "inspect", "review", "status", "check", "test", "doctor", "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "safe_push", "session_status"]) {
+      assert.equal(listedNames.includes(name), true, name);
+    }
     const blocked = await server.request({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "add", arguments: { a: 2, b: 3 } } });
     assert.equal(blocked.result.isError, true);
     assert.equal(blocked.result.structuredContent.error.code, "FREELANG_RUNNER_UNAVAILABLE");
@@ -199,7 +203,7 @@ async function runIntegrationTests(runner) {
   await first.notify({ jsonrpc: "2.0", method: "notifications/initialized" });
 
   const listed = await first.request({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
-    assert.deepEqual(listed.result.tools.map((tool) => tool.name), ["add", "status", "check", "test"]);
+    assert.equal(listed.result.tools.length, 20);
   assert.deepEqual(listed.result.tools[0].inputSchema.required, ["a", "b"]);
   assert.equal(listed.result.tools[0].inputSchema.additionalProperties, false);
   assert.equal(listed.result.tools[0].inputSchema.properties.a.type, "number");

@@ -45,9 +45,16 @@ stdio와 HTTP는 서로 다른 lifecycle을 사용하며, 한 전송 안에서 h
 | `check` | 프로젝트 검사 게이트를 실행한다 | `{ "project": string }` 선택 (MCP workspace 내부 상대 경로) | 기존 `fl-check` 출력과 PASS/FAIL | 경로 범위·검사 실패 |
 | `test` | 프로젝트 테스트 게이트를 실행한다 | `{ "project": string }` 선택 (MCP workspace 내부 상대 경로) | 기존 `fl-test --auto` 출력과 PASS/FAIL | 경로 범위·테스트 실패 |
 
+추가로 `start`, `inspect`, `review`, `report`, `detect`, `route`, `doctor`,
+`release_check`, `evidence`, `adapter`, `handoff`, `init`, `pipeline`, `journal`,
+`safe_push`, `session_status`가 등록되어 있다. 각 도구는 동일한 고정 스크립트
+계약을 호출한다. `init`, `handoff`, `pipeline`, `journal`, `safe_push`는
+`confirm: true`가 없으면 실행되지 않는다.
+
 현재 등록 목록은 `add`, `status`, `check`, `test`다. MCP 호스트는 JSON 입력 형식을 확인하고,
 `mcp/core/add.fls`가 전달받은 값의 숫자 변환과 덧셈을 실제로 수행한다.
-임의 코드·셸 명령 실행 도구는 등록하지 않는다. 프로젝트 도구는 저장소의
+임의 코드·셸 명령 실행 도구는 등록하지 않는다. `deploy`는 MCP에 등록하지 않고
+개별 배포 절차로 유지한다. 프로젝트 도구는 저장소의
 고정된 `scripts/fl-status`, `scripts/fl-check`, `scripts/fl-test`만 실행하며,
 대상 경로는 MCP workspace 내부로 제한한다.
 
