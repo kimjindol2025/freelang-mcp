@@ -70,6 +70,12 @@ Streamable HTTP `/mcp`를 지원한다. 실제 검증은 stdio에
 `npm run test:mcp`, 공식 MCP SDK 기반 HTTP 클라이언트에
 `npm run test:mcp:http`를 사용한다.
 
+MCP 저장소에서는 `fl-tools report <저장소 경로>`가 HTTP 요청 제한, 공식 MCP
+SDK의 실제 FreeLang 호출, stdio 통합, v11 회귀를 각각 실행한다. 실행기나 SDK
+의존성이 없으면 해당 항목을 `BLOCKED`로 표시하고 최초 차단 원인을 출력한다.
+전체 보고서는 실패가 있으면 `FAIL`(종료 코드 1), 차단만 있으면
+`BLOCKED`(종료 코드 2)로 판정한다.
+
 테스트 계약은 세 흐름을 독립적으로 판정한다.
 
 | 명령 | 검증 범위 | 필요한 실행기 | 실행기 부재 |

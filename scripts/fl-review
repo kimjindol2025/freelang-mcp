@@ -6,6 +6,7 @@ TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
 TARGET="${1:-.}"
 ROOT="$(cd -- "$TARGET" && pwd -P)"
 FAIL=0
+BLOCKED=0
 
 run_gate() {
   local name="$1"
@@ -18,6 +19,9 @@ run_gate() {
   printf '%s\n' "$output"
   if [[ "$code" -eq 0 ]]; then
     echo "$name=PASS"
+  elif [[ "$code" -eq 2 ]]; then
+    echo "$name=BLOCKED"
+    BLOCKED=1
   else
     echo "$name=FAIL"
     FAIL=1
@@ -61,10 +65,15 @@ else
   echo "CONTRACT_DRIFT=0"
 fi
 
-echo "REGRESSION=$( [[ "$FAIL" -eq 0 ]] && echo PASS || echo FAIL )"
-if [[ "$FAIL" -eq 0 ]]; then
-  echo "REVIEW=PASS"
-else
+if [[ "$FAIL" -ne 0 ]]; then
+  echo "REGRESSION=FAIL"
   echo "REVIEW=FAIL"
   exit 1
+elif [[ "$BLOCKED" -ne 0 ]]; then
+  echo "REGRESSION=BLOCKED"
+  echo "REVIEW=BLOCKED"
+  exit 2
+else
+  echo "REGRESSION=PASS"
+  echo "REVIEW=PASS"
 fi

@@ -17,6 +17,132 @@ PROJECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^PROJECT=//p')"
 DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
 RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
 
+if [[ -f "$ROOT/mcp/http-server.mjs" && -f "$ROOT/mcp/stdio-server.mjs" && -f "$ROOT/mcp/tests/http-client.mjs" && -f "$ROOT/mcp/core/add.fls" ]]; then
+  GIT_STATUS="not-a-repository"
+  BRANCH="none"
+  if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    BRANCH="$(git -C "$ROOT" branch --show-current)"
+    [[ -z "$(git -C "$ROOT" status --short)" ]] && GIT_STATUS=clean || GIT_STATUS=dirty
+  fi
+
+  FAIL=0
+  BLOCKED=0
+  FIRST_BLOCKED_CAUSE=""
+
+  run_mcp_gate() {
+    local name="$1" expected="$2" output code cause
+    shift 2
+    set +e
+    output="$("$@" 2>&1)"
+    code=$?
+    set -e
+    printf '\n## %s\n%s\n' "$name" "$output"
+    if [[ "$code" -eq 0 && -n "$expected" ]] && ! grep -Fqx "$expected" <<<"$output"; then
+      code=1
+      output+=$'\n'"CAUSE=missing expected test result: $expected"
+    fi
+    cause="$(printf '%s\n' "$output" | sed -n -e 's/^CAUSE=//p' -e 's/^MCP_BLOCK_REASON=//p' | head -n 1)"
+    if [[ "$code" -eq 0 ]]; then
+      echo "$name=PASS"
+    elif [[ "$code" -eq 2 ]]; then
+      echo "$name=BLOCKED"
+      echo "${name}_CAUSE=${cause:-test environment unavailable}"
+      [[ -n "$FIRST_BLOCKED_CAUSE" ]] || FIRST_BLOCKED_CAUSE="${cause:-test environment unavailable}"
+      BLOCKED=1
+    else
+      echo "$name=FAIL"
+      echo "${name}_CAUSE=${cause:-test exited with code $code}"
+      FAIL=1
+    fi
+    echo "${name}_EXIT_CODE=$code"
+  }
+
+  run_http_sdk() (
+    local script_runner temp_dir token server_pid="" url="" startup_cause="" server_exit=0
+    if ! script_runner="$(cd "$ROOT" && node --input-type=module -e 'import {resolveRunner} from "./mcp/runner.mjs"; process.stdout.write(resolveRunner() || "")')"; then
+      echo "CAUSE=unable to inspect FreeLang Script runner"
+      return 1
+    fi
+    if [[ -z "$script_runner" ]]; then
+      echo "CAUSE=FreeLang Script runner not found; set FREELANG_SCRIPT_RUNNER or FREELANG_SCRIPT_ROOT"
+      return 2
+    fi
+    if ! node -e 'require.resolve("@modelcontextprotocol/client", { paths: [process.argv[1]] })' "$ROOT" >/dev/null 2>&1; then
+      echo "CAUSE=official MCP SDK dependency missing in $ROOT; run npm ci"
+      return 2
+    fi
+
+    if ! temp_dir="$(mktemp -d /tmp/fl-mcp-report.XXXXXX)"; then
+      echo "CAUSE=unable to create isolated HTTP test directory"
+      return 2
+    fi
+    cleanup_http() {
+      if [[ -n "$server_pid" ]]; then
+        kill "$server_pid" 2>/dev/null || true
+        for ((attempt=0; attempt<20; attempt++)); do
+          kill -0 "$server_pid" 2>/dev/null || break
+          sleep 0.1
+        done
+        kill -KILL "$server_pid" 2>/dev/null || true
+        wait "$server_pid" 2>/dev/null || true
+      fi
+      rm -f -- "$temp_dir/server.log" "$temp_dir/audit.jsonl"
+      rmdir -- "$temp_dir"
+    }
+    trap cleanup_http EXIT
+    trap 'exit 130' INT TERM
+    if ! token="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(24).toString("hex"))')"; then
+      echo "CAUSE=unable to create HTTP test credential"
+      return 1
+    fi
+    MCP_HTTP_HOST=127.0.0.1 MCP_HTTP_PORT=0 MCP_HTTP_BEARER_TOKEN="$token" \
+      MCP_EXECUTION_LOG="$temp_dir/audit.jsonl" FREELANG_SCRIPT_RUNNER="$script_runner" \
+      node "$ROOT/mcp/http-server.mjs" >"$temp_dir/server.log" 2>&1 &
+    server_pid=$!
+    for ((attempt=0; attempt<50; attempt++)); do
+      url="$(sed -n 's/^MCP_HTTP_LISTENING=//p' "$temp_dir/server.log" | head -n 1)"
+      [[ -z "$url" ]] || break
+      kill -0 "$server_pid" 2>/dev/null || break
+      sleep 0.1
+    done
+    if [[ -z "$url" ]]; then
+      startup_cause="$(sed -n 's/^MCP_HTTP_STARTUP=BLOCKED //p' "$temp_dir/server.log" | head -n 1)"
+      kill -0 "$server_pid" 2>/dev/null && server_exit=1 || wait "$server_pid" || server_exit=$?
+      echo "CAUSE=${startup_cause:-HTTP server failed to become ready}"
+      [[ "$server_exit" -eq 2 ]] && return 2 || return 1
+    fi
+    MCP_HTTP_URL="$url" MCP_HTTP_BEARER_TOKEN="$token" FREELANG_SCRIPT_RUNNER="$script_runner" \
+      npm --prefix "$ROOT" run test:mcp:http
+  )
+
+  printf '# FreeLang Tools Report\n\nPROJECT=%s\nROOT=%s\nDIALECT=%s\nRUNNER=%s\nBRANCH=%s\nGIT=%s\n' \
+    "$PROJECT" "$ROOT" "$DIALECT" "$RUNNER" "$BRANCH" "$GIT_STATUS"
+  if ! command -v node >/dev/null || ! command -v npm >/dev/null; then
+    echo "FIRST_BLOCKED_CAUSE=Node.js and npm are required for MCP regression"
+    for name in MCP_HTTP_REQUESTS MCP_HTTP_SDK MCP_STDIO FREELANG_V11; do
+      echo "$name=BLOCKED"
+      echo "${name}_CAUSE=Node.js and npm are required for MCP regression"
+      echo "${name}_EXIT_CODE=2"
+    done
+    echo "REPORT=BLOCKED"
+    exit 2
+  fi
+  run_mcp_gate MCP_HTTP_REQUESTS "" npm --prefix "$ROOT" run test:mcp:http:requests
+  run_mcp_gate FREELANG_V11 "FREELANG_V11_TEST=PASS" npm --prefix "$ROOT" run test:v11
+  run_mcp_gate MCP_STDIO "MCP_INTEGRATION=PASS" npm --prefix "$ROOT" run test:mcp
+  run_mcp_gate MCP_HTTP_SDK "MCP_HTTP_SDK=PASS" run_http_sdk
+  [[ -z "$FIRST_BLOCKED_CAUSE" ]] || echo "FIRST_BLOCKED_CAUSE=$FIRST_BLOCKED_CAUSE"
+  if [[ "$FAIL" -ne 0 ]]; then
+    echo "REPORT=FAIL"
+    exit 1
+  elif [[ "$BLOCKED" -ne 0 ]]; then
+    echo "REPORT=BLOCKED"
+    exit 2
+  fi
+  echo "REPORT=PASS"
+  exit 0
+fi
+
 STATUS_OUTPUT=""
 STATUS_CODE=0
 set +e
