@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+COMMAND="${1:-list}"
+TARGET="${2:-.}"
+
+if [[ "$COMMAND" != list ]]; then
+  echo "사용법: fl-tools adapter list [경로]" >&2
+  exit 2
+fi
+if [[ ! -d "$TARGET" ]]; then
+  echo "ADAPTER_LIST=BLOCKED"
+  echo "CAUSE=directory not found: $TARGET" >&2
+  exit 2
+fi
+
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
+SELECTED="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+DETECTED_RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+
+report_adapter() {
+  local name="$1"
+  local runner="$2"
+  if [[ -n "$runner" && -e "$runner" ]]; then
+    printf 'ADAPTER_%s=PASS\n' "$name"
+    printf 'ADAPTER_%s_RUNNER=%s\n' "$name" "$runner"
+  else
+    printf 'ADAPTER_%s=BLOCKED\n' "$name"
+    printf 'ADAPTER_%s_RUNNER=%s\n' "$name" "${runner:-none}"
+  fi
+}
+
+AFJ_RUNNER=none
+if [[ "$SELECTED" == AFJ && "$DETECTED_RUNNER" != none ]]; then
+  AFJ_RUNNER="$DETECTED_RUNNER"
+fi
+report_adapter AFJ "$AFJ_RUNNER"
+
+SCRIPT_RUNNER="${FREELANG_SCRIPT_RUNNER:-/home/kim/freelang-script/bin/fl-script-unified.js}"
+report_adapter SCRIPT "$SCRIPT_RUNNER"
+
+FRONT_RUNNER=none
+for candidate in "$ROOT/fl-front-build.js" "$ROOT/web/fl-front-build.js"; do
+  if [[ -f "$candidate" ]]; then FRONT_RUNNER="$candidate"; break; fi
+done
+report_adapter FRONT "$FRONT_RUNNER"
+
+FX_RUNNER=none
+[[ -x "$ROOT/tests/run-tests.sh" ]] && FX_RUNNER="$ROOT/tests/run-tests.sh"
+report_adapter FX "$FX_RUNNER"
+
+AIA_RUNNER=none
+[[ -x "$ROOT/tools/verify-aia-cold-boot.sh" ]] && AIA_RUNNER="$ROOT/tools/verify-aia-cold-boot.sh"
+report_adapter AIA "$AIA_RUNNER"
+
+printf 'SELECTED_DIALECT=%s\n' "$SELECTED"
+echo "ADAPTER_LIST=PASS"

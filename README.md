@@ -31,6 +31,9 @@ fl-tools start .
 fl-tools inspect .
 fl-tools review .
 fl-tools report .
+fl-tools handoff .
+fl-tools evidence --json .
+fl-tools adapter list .
 fl-tools deploy .
 fl-tools test
 fl-tools check
@@ -47,7 +50,9 @@ fl-test
 
 `init`은 프로젝트의 `.freelang/worklog.md` 작업 기록 공간을 만든다.
 `inspect`는 감지·라우팅·건강검진·상태를 한 번에 출력하고, `report`는 테스트와
-리뷰 결과를 완료 보고서 형식으로 출력한다.
+리뷰 결과를 완료 보고서 형식으로 출력한다. `handoff`는 다음 작업자를 위한
+`.freelang/handoff.md`를 만들고, `evidence --json`은 검증 결과를 JSON으로
+보존한다. `adapter list`는 현재 프로젝트에서 사용할 수 있는 런너를 보여준다.
 
 `fl-test`는 현재 프로젝트의 `tests/**/*.test.fl`을 자동 발견하고, AFJ
 런타임의 `check → run`과 `deftest`/`is`/`is=`/`run-tests` 결과를 검사한다.

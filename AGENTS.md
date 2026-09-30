@@ -19,6 +19,8 @@
 4. 수정 후 Bash 문법 검사와 관련 `npm` 테스트를 실행한다.
 5. AFJ 의존 테스트는 `FREELANG_AFJ_RUNNER`를 실제 경로로 설정해 실행한다.
 6. `fl-tools report <target>` 결과와 diff, 환경 한계를 보고한다.
+7. 필요하면 `fl-tools handoff <target>`와 `fl-tools evidence --json <target>`로
+   다음 작업자에게 전달할 상태를 보존한다.
 
 ## Implementation rules
 
@@ -39,6 +41,9 @@
 ./scripts/fl-tools detect .
 ./scripts/fl-tools review .
 ./scripts/fl-tools report .
+./scripts/fl-tools handoff .
+./scripts/fl-tools evidence --json .
+./scripts/fl-tools adapter list .
 npm test
 npm run test:deploy-fixture
 ```

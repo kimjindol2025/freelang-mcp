@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="${1:-.}"
+OUTPUT=""
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  echo "사용법: fl-tools handoff [--output 파일] [경로]"
+  exit 0
+fi
+
+if [[ "${1:-}" == "--output" ]]; then
+  OUTPUT="${2:?--output requires a file path}"
+  TARGET="${3:-.}"
+fi
+
+if [[ ! -d "$TARGET" ]]; then
+  echo "HANDOFF=BLOCKED"
+  echo "CAUSE=directory not found: $TARGET" >&2
+  exit 2
+fi
+
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+OUTPUT="${OUTPUT:-$ROOT/.freelang/handoff.md}"
+mkdir -p "$(dirname -- "$OUTPUT")"
+
+DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
+PROJECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^PROJECT=//p')"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+
+BRANCH=none
+COMMIT=none
+GIT_STATUS=not-a-repository
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  BRANCH="$(git -C "$ROOT" branch --show-current)"
+  COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
+  if [[ -n "$(git -C "$ROOT" status --short)" ]]; then
+    GIT_STATUS=dirty
+  else
+    GIT_STATUS=clean
+  fi
+fi
+
+REPORT_OUTPUT=""
+REPORT_CODE=0
+set +e
+REPORT_OUTPUT="$($TOOLS_ROOT/scripts/fl-report "$ROOT" 2>&1)"
+REPORT_CODE=$?
+set -e
+
+cat > "$OUTPUT" <<EOF
+# FreeLang Handoff
+
+Generated: $(date -Iseconds)
+
+## Project
+
+- Project: $PROJECT
+- Root: $ROOT
+- Dialect: $DIALECT
+- Runner: $RUNNER
+- Branch: $BRANCH
+- Commit: $COMMIT
+- Git: $GIT_STATUS
+
+## Next commands
+
+\`\`\`bash
+fl-tools inspect $ROOT
+fl-tools report $ROOT
+fl-tools evidence --json $ROOT
+\`\`\`
+
+## Latest report
+
+$REPORT_OUTPUT
+EOF
+
+printf 'HANDOFF_FILE=%s\n' "$OUTPUT"
+if [[ "$REPORT_CODE" -eq 0 ]]; then
+  echo "REPORT=PASS"
+  echo "HANDOFF=PASS"
+else
+  echo "REPORT=FAIL"
+  echo "HANDOFF=PASS_WITH_FAILED_REPORT"
+  exit 1
+fi

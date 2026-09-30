@@ -17,6 +17,9 @@ init → inspect → check/test → review → report → deploy
 - `fl-tools check <path>`: 소스 문법과 테스트를 검사한다.
 - `fl-tools review <path>`: check, test, lint, build, diff, 생성물, 계약 drift를 검사한다.
 - `fl-tools report <path>`: status와 review를 완료 보고서로 출력한다.
+- `fl-tools handoff <path>`: 다음 작업자를 위한 `.freelang/handoff.md`를 생성한다.
+- `fl-tools evidence --json <path>`: 검증 결과와 원시 출력을 JSON으로 보존한다.
+- `fl-tools adapter list <path>`: AFJ, FX, AIA, Script, Front 런너 상태를 출력한다.
 - `fl-tools deploy <path>`: review 통과 후 프로젝트가 제공한 배포·smoke 계약만 실행한다.
 
 ## 런너 설정

@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+JSON_ONLY=NO
+OUTPUT=""
+TARGET="."
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json) JSON_ONLY=YES ;;
+    --output) OUTPUT="${2:?--output requires a file path}"; shift ;;
+    --help|-h)
+      echo "사용법: fl-tools evidence --json [--output 파일] [경로]"
+      exit 0
+      ;;
+    *) TARGET="$1" ;;
+  esac
+  shift
+done
+
+if [[ "$JSON_ONLY" != YES ]]; then
+  echo "EVIDENCE=BLOCKED"
+  echo "CAUSE=--json is required" >&2
+  exit 2
+fi
+if [[ ! -d "$TARGET" ]]; then
+  echo "EVIDENCE=BLOCKED"
+  echo "CAUSE=directory not found: $TARGET" >&2
+  exit 2
+fi
+
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
+
+STATUS_OUTPUT=""
+STATUS_CODE=0
+set +e
+STATUS_OUTPUT="$($TOOLS_ROOT/scripts/fl-status "$ROOT" 2>&1)"
+STATUS_CODE=$?
+set -e
+
+REVIEW_OUTPUT=""
+REVIEW_CODE=0
+set +e
+REVIEW_OUTPUT="$($TOOLS_ROOT/scripts/fl-review "$ROOT" 2>&1)"
+REVIEW_CODE=$?
+set -e
+
+GIT_STATUS_OUTPUT=""
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  GIT_STATUS_OUTPUT="$(git -C "$ROOT" status --short)"
+  BRANCH="$(git -C "$ROOT" branch --show-current)"
+  COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
+  GIT_STATE=clean
+  [[ -n "$GIT_STATUS_OUTPUT" ]] && GIT_STATE=dirty
+else
+  BRANCH=none
+  COMMIT=none
+  GIT_STATE=not-a-repository
+fi
+
+DIFF_CHECK=PASS
+git -C "$ROOT" diff --check >/dev/null 2>&1 || DIFF_CHECK=FAIL
+
+PROJECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^PROJECT=//p')"
+DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"
+RUNNER="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^RUNNER=//p')"
+TEST_STATUS=UNKNOWN
+grep -q '^TEST=PASS$' <<<"$STATUS_OUTPUT" && TEST_STATUS=PASS
+grep -q '^TEST=FAIL$' <<<"$STATUS_OUTPUT" && TEST_STATUS=FAIL
+grep -q '^TEST=NOT_RUN$' <<<"$STATUS_OUTPUT" && TEST_STATUS=NOT_RUN
+REVIEW_STATUS=FAIL
+[[ "$REVIEW_CODE" -eq 0 ]] && grep -q '^REVIEW=PASS$' <<<"$REVIEW_OUTPUT" && REVIEW_STATUS=PASS
+
+EVIDENCE_JSON="$(
+  PROJECT="$PROJECT" ROOT="$ROOT" DIALECT="$DIALECT" RUNNER="$RUNNER" \
+  BRANCH="$BRANCH" COMMIT="$COMMIT" GIT_STATE="$GIT_STATE" \
+  GIT_STATUS_OUTPUT="$GIT_STATUS_OUTPUT" TEST_STATUS="$TEST_STATUS" \
+  REVIEW_STATUS="$REVIEW_STATUS" STATUS_CODE="$STATUS_CODE" \
+  REVIEW_CODE="$REVIEW_CODE" DIFF_CHECK="$DIFF_CHECK" \
+  DETECT_OUTPUT="$DETECT_OUTPUT" STATUS_OUTPUT="$STATUS_OUTPUT" \
+  REVIEW_OUTPUT="$REVIEW_OUTPUT" \
+  node -e '
+    const env = process.env;
+    const payload = {
+      generatedAt: new Date().toISOString(),
+      project: { name: env.PROJECT, root: env.ROOT, dialect: env.DIALECT, runner: env.RUNNER },
+      git: { branch: env.BRANCH, commit: env.COMMIT, state: env.GIT_STATE, status: env.GIT_STATUS_OUTPUT },
+      verification: {
+        test: env.TEST_STATUS,
+        review: env.REVIEW_STATUS,
+        diffCheck: env.DIFF_CHECK,
+        statusExitCode: Number(env.STATUS_CODE),
+        reviewExitCode: Number(env.REVIEW_CODE)
+      },
+      commands: ["fl-tools detect", "fl-tools status", "fl-tools review"],
+      raw: { detect: env.DETECT_OUTPUT, status: env.STATUS_OUTPUT, review: env.REVIEW_OUTPUT }
+    };
+    process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
+  '
+)"
+
+if [[ -n "$OUTPUT" ]]; then
+  mkdir -p "$(dirname -- "$OUTPUT")"
+  printf '%s' "$EVIDENCE_JSON" > "$OUTPUT"
+  printf 'EVIDENCE_FILE=%s\n' "$OUTPUT" >&2
+else
+  printf '%s' "$EVIDENCE_JSON"
+fi
