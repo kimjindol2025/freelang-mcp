@@ -4,6 +4,7 @@ import { authorizeTool, validateArguments, validateProjectArguments } from "./po
 import { runAdd } from "./runner.mjs";
 import { runProjectTool } from "./project-tools.mjs";
 import { writeAudit } from "./audit.mjs";
+import { projectInfo, readSource, searchSource } from "./source-tools.mjs";
 
 function textResult(text, isError = false, structuredContent) {
   const result = { content: [{ type: "text", text: String(text) }], isError };
@@ -45,7 +46,11 @@ export function handleToolCall(request, cwd) {
     recordTool(request, cwd, toolName, false, startedAt, permission.code);
     return { jsonrpc: "2.0", id: request.id ?? null, result: textResult(permission.message, true) };
   }
-  const validation = toolName === "add" ? validateArguments(args) : validateProjectArguments(args);
+  const validation = toolName === "add"
+    ? validateArguments(args)
+    : ["project_info", "read_source", "search"].includes(toolName)
+      ? validateSourceArguments(toolName, args)
+      : validateProjectArguments(args);
   if (!validation.ok) {
     recordTool(request, cwd, toolName, false, startedAt, validation.code);
     return {
@@ -57,7 +62,21 @@ export function handleToolCall(request, cwd) {
 
   const result = toolName === "add"
     ? runAdd(args.a, args.b, { cwd })
-    : runProjectTool(toolName, cwd, validation);
+    : toolName === "project_info"
+      ? { ok: true, value: projectInfo(cwd) }
+      : toolName === "read_source"
+        ? readSource(cwd, args)
+        : toolName === "search"
+          ? searchSource(cwd, args)
+          : runProjectTool(toolName, cwd, validation);
+  if (["project_info", "read_source", "search"].includes(toolName)) {
+    if (!result.ok) {
+      recordTool(request, cwd, toolName, false, startedAt, result.error.code);
+      return { jsonrpc: "2.0", id: request.id ?? null, result: textResult(result.error.message, true, { error: result.error }) };
+    }
+    recordTool(request, cwd, toolName, true, startedAt);
+    return { jsonrpc: "2.0", id: request.id ?? null, result: textResult(JSON.stringify(result.value), false, result.value) };
+  }
   if (toolName !== "add") {
     if (!result.ok) {
       recordTool(request, cwd, toolName, false, startedAt, result.error.code);
@@ -93,4 +112,20 @@ export function handleToolCall(request, cwd) {
     id: request.id ?? null,
     result: textResult(String(result.result), false, { result: result.result })
   };
+}
+
+function validateSourceArguments(toolName, argumentsValue) {
+  if (argumentsValue === undefined) argumentsValue = {};
+  if (argumentsValue === null || typeof argumentsValue !== "object" || Array.isArray(argumentsValue)) {
+    return { ok: false, code: "INVALID_INPUT", message: "arguments must be an object" };
+  }
+  const allowed = toolName === "project_info" ? [] : toolName === "read_source" ? ["path", "startLine", "endLine"] : ["query", "path"];
+  if (Object.keys(argumentsValue).some((key) => !allowed.includes(key))) {
+    return { ok: false, code: "INVALID_INPUT", message: `unsupported ${toolName} argument` };
+  }
+  if (toolName === "read_source" && typeof argumentsValue.path !== "string") return { ok: false, code: "INVALID_INPUT", message: "path is required" };
+  if (toolName === "search" && (typeof argumentsValue.query !== "string" || argumentsValue.query.length === 0)) return { ok: false, code: "INVALID_INPUT", message: "query must be a non-empty string" };
+  for (const key of ["path", "query"]) if (argumentsValue[key] !== undefined && typeof argumentsValue[key] !== "string") return { ok: false, code: "INVALID_INPUT", message: `${key} must be a string` };
+  for (const key of ["startLine", "endLine"]) if (argumentsValue[key] !== undefined && !Number.isInteger(argumentsValue[key])) return { ok: false, code: "INVALID_INPUT", message: `${key} must be an integer` };
+  return { ok: true, ...argumentsValue };
 }

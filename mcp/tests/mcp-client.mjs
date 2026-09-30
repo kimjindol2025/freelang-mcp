@@ -70,7 +70,7 @@ function startServer(scriptRunner = resolveRunner(), serverLog = path.join(tempR
   child.on("exit", (code, signal) => {
     closed = true;
     if (!stopping && code !== 0) failWaiters(new Error(`MCP server exited (${code ?? signal}): ${stderr.trim()}`));
-    else failWaiters(new Error("MCP server exited before responding"));
+    else failWaiters(new Error(`MCP server exited before responding: ${stderr.trim()}`));
   });
   function receive(timeoutMs = REQUEST_TIMEOUT_MS) {
     if (queued.length) return Promise.resolve(queued.shift());
@@ -180,8 +180,8 @@ async function runRequestHandlingTests() {
     await expectNoResponse(server, { jsonrpc: "2.0", method: "notifications/initialized" });
     const listed = await server.request({ jsonrpc: "2.0", id: 6, method: "tools/list", params: {} });
     const listedNames = listed.result.tools.map((tool) => tool.name);
-    assert.equal(listedNames.length, 20);
-    for (const name of ["add", "start", "inspect", "review", "status", "check", "test", "doctor", "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "safe_push", "session_status"]) {
+    assert.equal(listedNames.length, 23);
+    for (const name of ["add", "project_info", "read_source", "search", "start", "inspect", "review", "status", "check", "test", "doctor", "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "safe_push", "session_status"]) {
       assert.equal(listedNames.includes(name), true, name);
     }
     const blocked = await server.request({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "add", arguments: { a: 2, b: 3 } } });
@@ -203,7 +203,7 @@ async function runIntegrationTests(runner) {
   await first.notify({ jsonrpc: "2.0", method: "notifications/initialized" });
 
   const listed = await first.request({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
-    assert.equal(listed.result.tools.length, 20);
+  assert.equal(listed.result.tools.length, 23);
   assert.deepEqual(listed.result.tools[0].inputSchema.required, ["a", "b"]);
   assert.equal(listed.result.tools[0].inputSchema.additionalProperties, false);
   assert.equal(listed.result.tools[0].inputSchema.properties.a.type, "number");
@@ -213,6 +213,17 @@ async function runIntegrationTests(runner) {
   const direct = runAdd(2, 3);
   assert.equal(direct.ok, true, JSON.stringify(direct));
   assertAddResponse(addResponse, 3, direct.result);
+  const info = await first.request({ jsonrpc: "2.0", id: 17, method: "tools/call", params: { name: "project_info", arguments: {} } });
+  assert.equal(info.result.isError, false);
+  assert.equal(info.result.structuredContent.project, "freelang-mcp");
+  const source = await first.request({ jsonrpc: "2.0", id: 18, method: "tools/call", params: { name: "read_source", arguments: { path: "mcp/README.md", startLine: 1, endLine: 1 } } });
+  assert.equal(source.result.isError, false);
+  assert.equal(source.result.structuredContent.path, "mcp/README.md");
+  const search = await first.request({ jsonrpc: "2.0", id: 19, method: "tools/call", params: { name: "search", arguments: { query: "project_info", path: "mcp/registry.mjs" } } });
+  assert.equal(search.result.isError, false);
+  assert.ok(search.result.structuredContent.matches.length >= 1);
+  const traversal = await first.request({ jsonrpc: "2.0", id: 20, method: "tools/call", params: { name: "read_source", arguments: { path: "../README.md" } } });
+  assert.equal(traversal.result.isError, true);
   const invalid = await first.request({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "add", arguments: { a: "two", b: 3 } } });
   assert.equal(invalid.result.isError, true);
   assert.match(invalid.result.content[0].text, /numbers/);
@@ -245,15 +256,15 @@ async function runIntegrationTests(runner) {
   await second.close();
 
   const records = fs.readFileSync(logFile, "utf8").trim().split(/\r?\n/).map((line) => JSON.parse(line));
-  assert.deepEqual(records.map((record) => record.requestId), [3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 11]);
+  assert.deepEqual(records.map((record) => record.requestId), [3, 17, 18, 19, 20, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 11]);
   for (const record of records) {
-    assert.equal(["add", "missing", "status", "check", "test"].includes(record.toolName), true);
+    assert.equal(["add", "project_info", "read_source", "search", "missing", "status", "check", "test"].includes(record.toolName), true);
     assert.equal(typeof record.success, "boolean");
     assert.equal(typeof record.durationMs, "number");
     assert.equal(Object.prototype.hasOwnProperty.call(record, "arguments"), false);
   }
-  assert.equal(records.filter((record) => record.success).length, 7);
-  assert.equal(records.filter((record) => !record.success).length, 6);
+  assert.equal(records.filter((record) => record.success).length, 10);
+  assert.equal(records.filter((record) => !record.success).length, 7);
   console.log("MCP_CLIENT_INTEGRATION=PASS");
   console.log("MCP_PROTOCOL=2025-11-25");
   console.log("MCP_CALL_RESULT=5");

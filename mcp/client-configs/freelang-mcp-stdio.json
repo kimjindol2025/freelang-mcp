@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "freelang": {
+      "command": "node",
+      "args": [
+        "/ABSOLUTE/PATH/TO/freelang-mcp/mcp/stdio-server.mjs"
+      ],
+      "env": {
+        "FREELANG_SCRIPT_RUNNER": "/ABSOLUTE/PATH/TO/freelang-script/bin/fl-script-unified.js"
+      }
+    }
+  }
+}

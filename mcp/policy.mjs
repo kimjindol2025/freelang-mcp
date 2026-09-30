@@ -4,7 +4,7 @@ const PROJECT_TOOLS = new Set([
 ]);
 
 export function authorizeTool(name) {
-  if (name === "add" || PROJECT_TOOLS.has(name)) {
+  if (["add", "project_info", "read_source", "search"].includes(name) || PROJECT_TOOLS.has(name)) {
     return { allowed: true, approvalRequired: false };
   }
   return {

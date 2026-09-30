@@ -35,6 +35,40 @@ const ADD_TOOL = Object.freeze({
   })
 });
 
+const PROJECT_INFO_TOOL = Object.freeze({
+  name: "project_info",
+  title: "FreeLang Project Info",
+  description: "Return metadata for the current MCP workspace.",
+  inputSchema: Object.freeze({ type: "object", properties: Object.freeze({}), additionalProperties: false }),
+  annotations: Object.freeze({ readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false })
+});
+
+const READ_SOURCE_TOOL = Object.freeze({
+  name: "read_source",
+  title: "Read Project Source",
+  description: "Read a bounded source file inside the MCP workspace.",
+  inputSchema: Object.freeze({
+    type: "object",
+    properties: Object.freeze({ path: Object.freeze({ type: "string" }), startLine: Object.freeze({ type: "integer", minimum: 1 }), endLine: Object.freeze({ type: "integer", minimum: 1 }) }),
+    required: Object.freeze(["path"]),
+    additionalProperties: false
+  }),
+  annotations: Object.freeze({ readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false })
+});
+
+const SEARCH_TOOL = Object.freeze({
+  name: "search",
+  title: "Search Project Source",
+  description: "Search project source files for a literal string, with bounded results.",
+  inputSchema: Object.freeze({
+    type: "object",
+    properties: Object.freeze({ query: Object.freeze({ type: "string" }), path: Object.freeze({ type: "string" }) }),
+    required: Object.freeze(["query"]),
+    additionalProperties: false
+  }),
+  annotations: Object.freeze({ readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false })
+});
+
 const PROJECT_TOOL_INPUT = Object.freeze({
   type: "object",
   properties: Object.freeze({
@@ -76,7 +110,7 @@ function projectTool(name, title, description) {
 const PROJECT_TOOLS = PROJECT_TOOL_NAMES.map((name) => projectTool(name, `FreeLang ${name}`, `Run the registered ${name} FreeLang Tools operation.`));
 
 export function listTools() {
-  return [ADD_TOOL, ...PROJECT_TOOLS];
+  return [ADD_TOOL, PROJECT_INFO_TOOL, READ_SOURCE_TOOL, SEARCH_TOOL, ...PROJECT_TOOLS];
 }
 
 export function getTool(name) {

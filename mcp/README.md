@@ -41,6 +41,9 @@ stdio와 HTTP는 서로 다른 lifecycle을 사용하며, 한 전송 안에서 h
 | 이름 | 설명 | 입력 | 성공 결과 | 오류 |
 | --- | --- | --- | --- | --- |
 | `add` | FreeLang Script로 두 숫자를 더한다 | 객체 `{ "a": number, "b": number }` (두 필드 필수, 추가 필드 불허, 유한한 숫자) | `content[0].text`와 `structuredContent.result`에 계산 결과 | 잘못된 입력 `INVALID_INPUT`, 실행기 부재 `FREELANG_RUNNER_UNAVAILABLE`, 실행 실패 `FREELANG_EXECUTION_ERROR` 또는 `FREELANG_INVALID_RESULT` |
+| `project_info` | 현재 MCP workspace 메타데이터를 조회한다 | `{}` | 프로젝트, 프로토콜, workspace, 등록 도구 목록 | 잘못된 입력 |
+| `read_source` | workspace 내부 소스 파일을 제한된 줄 범위로 읽는다 | `{ "path": string, "startLine": integer, "endLine": integer }` (`path` 필수) | 파일 경로와 줄 범위, 내용 | 경로 범위·파일 크기·줄 범위 오류 |
+| `search` | workspace 소스에서 문자열을 검색한다 | `{ "query": string, "path": string }` (`query` 필수) | 최대 50개 경로·줄·내용 일치 결과 | 경로 범위·빈 검색어·파일 오류 |
 | `status` | 프로젝트 상태를 조회한다 | `{ "project": string }` 선택 (MCP workspace 내부 상대 경로) | 기존 `fl-status` 출력과 PASS/FAIL | 경로 범위·프로젝트·실행 오류 |
 | `check` | 프로젝트 검사 게이트를 실행한다 | `{ "project": string }` 선택 (MCP workspace 내부 상대 경로) | 기존 `fl-check` 출력과 PASS/FAIL | 경로 범위·검사 실패 |
 | `test` | 프로젝트 테스트 게이트를 실행한다 | `{ "project": string }` 선택 (MCP workspace 내부 상대 경로) | 기존 `fl-test --auto` 출력과 PASS/FAIL | 경로 범위·테스트 실패 |
@@ -51,7 +54,7 @@ stdio와 HTTP는 서로 다른 lifecycle을 사용하며, 한 전송 안에서 h
 계약을 호출한다. `init`, `handoff`, `pipeline`, `journal`, `safe_push`는
 `confirm: true`가 없으면 실행되지 않는다.
 
-현재 등록 목록은 `add`, `status`, `check`, `test`다. MCP 호스트는 JSON 입력 형식을 확인하고,
+현재 등록 목록은 `add`, `project_info`, `read_source`, `search`, `status`, `check`, `test`를 포함한다. MCP 호스트는 JSON 입력 형식을 확인하고,
 `mcp/core/add.fls`가 전달받은 값의 숫자 변환과 덧셈을 실제로 수행한다.
 임의 코드·셸 명령 실행 도구는 등록하지 않는다. `deploy`는 MCP에 등록하지 않고
 개별 배포 절차로 유지한다. 프로젝트 도구는 저장소의
@@ -79,6 +82,37 @@ FreeLang Script 프로파일에는 stdin 스트림을 직접 읽는 안정적인
 재확인하고 계산한다. 어댑터는 MCP 프레이밍과 FreeLang 런너 호출을 맡는다.
 
 ## 실행
+
+### MCP 호스트 등록
+
+stdio 방식으로 등록할 때 `command`에는 실행 파일을, `args`에는 서버 파일을
+넣는다. `--version`은 실행 파일이 아니므로 `command`에 넣으면 안 된다.
+
+```json
+{
+  "mcpServers": {
+    "freelang": {
+      "command": "node",
+      "args": ["/absolute/path/to/freelang-mcp/mcp/stdio-server.mjs"],
+      "env": {
+        "FREELANG_SCRIPT_RUNNER": "/absolute/path/to/freelang-script/bin/fl-script-unified.js"
+      }
+    }
+  }
+}
+```
+
+다음과 같은 등록은 잘못된 설정이다.
+
+```json
+{ "command": "--version" }
+```
+
+이 경우 호스트가 `spawn --version ENOENT`로 실패한다. 버전 확인이 필요하면
+별도 터미널에서 `node --version`을 실행하고, MCP transport의 `command`는
+항상 `node`로 둔다. 바로 복사할 수 있는 예시는
+[`client-configs/freelang-mcp-stdio.json`](client-configs/freelang-mcp-stdio.json)에
+있다.
 
 ```bash
 FREELANG_SCRIPT_RUNNER=/root/freelang-script/bin/fl-script-unified.js \
