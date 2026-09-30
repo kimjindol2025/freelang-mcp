@@ -49,6 +49,7 @@
 ./scripts/fl-tools adapter list .
 npm test
 npm run test:deploy-fixture
+npm run test:mcp
 ```
 
 ## Git and delivery

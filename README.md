@@ -47,6 +47,7 @@ fl-tools journal show
 fl-tools release-check
 fl-tools safe-push --help
 fl-test
+npm run test:mcp
 ```
 
 `init`은 프로젝트의 `.freelang/worklog.md` 작업 기록 공간을 만든다.
@@ -58,6 +59,10 @@ fl-test
 배포가 필요하면 `fl-tools pipeline . --deploy`를 사용하며, push는 실행하지 않는다.
 `--deploy`도 dirty worktree 보호를 유지하므로, 작업 기록 파일을 먼저 commit하거나
 명시적으로 `FREELANG_ALLOW_DIRTY_DEPLOY=1`을 설정해야 한다.
+
+통합형 FreeLang MCP 기반은 [`mcp/README.md`](mcp/README.md)에 정리되어 있다.
+현재는 `2025-11-25` stdio legacy handshake와 FreeLang Script 기반 `add` 도구만
+지원한다. 실제 연결 검증은 `npm run test:mcp`로 실행한다.
 
 `fl-test`는 현재 프로젝트의 `tests/**/*.test.fl`을 자동 발견하고, AFJ
 런타임의 `check → run`과 `deftest`/`is`/`is=`/`run-tests` 결과를 검사한다.

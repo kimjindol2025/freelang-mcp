@@ -41,7 +41,17 @@ elif has_file "fl-front-build.js" || has_file "web/fl-front-build.js" || has_glo
 elif has_file "freelang.json" || has_file "bin/fl-script-unified.js" || has_glob '*.fls'; then
   DIALECT="SCRIPT"
   FAMILY="SCRIPT"
-  has_file "bin/fl-script-unified.js" && RUNNER="$ROOT/bin/fl-script-unified.js"
+  if has_file "bin/fl-script-unified.js"; then
+    RUNNER="$ROOT/bin/fl-script-unified.js"
+  elif [[ -n "${FREELANG_SCRIPT_RUNNER:-}" ]]; then
+    RUNNER="$FREELANG_SCRIPT_RUNNER"
+  elif [[ -n "${FREELANG_SCRIPT_ROOT:-}" && -f "$FREELANG_SCRIPT_ROOT/bin/fl-script-unified.js" ]]; then
+    RUNNER="$FREELANG_SCRIPT_ROOT/bin/fl-script-unified.js"
+  elif [[ -f "/root/freelang-script/bin/fl-script-unified.js" ]]; then
+    RUNNER="/root/freelang-script/bin/fl-script-unified.js"
+  elif [[ -f "/root/lang/freelang-script/bin/fl-script-unified.js" ]]; then
+    RUNNER="/root/lang/freelang-script/bin/fl-script-unified.js"
+  fi
 elif has_file "fl-test.sh" || has_file "fl-run.sh" || has_file "fx-std.fl"; then
   DIALECT="FX"
   FAMILY="FX"

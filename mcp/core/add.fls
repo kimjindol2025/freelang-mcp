@@ -1,0 +1,13 @@
+;; FreeLang MCP core: add(a, b)
+;; The stdio adapter passes arguments as strings so validation happens here.
+
+(define a-raw (get-arg 0))
+(define b-raw (get-arg 1))
+(define a (if (nil? a-raw) nil (str-to-num (str a-raw))))
+(define b (if (nil? b-raw) nil (str-to-num (str b-raw))))
+
+(if (and (number? a) (number? b))
+  (println (json-stringify {"ok" true "result" (+ a b)}))
+  (do
+    (println (json-stringify {"ok" false "error" {"code" "INVALID_INPUT" "message" "a and b must be numbers"}}))
+    (exit 2)))

@@ -28,11 +28,32 @@ case "$DIALECT" in
     fi
     ;;
   SCRIPT)
-    SCRIPT_RUNNER="${FREELANG_SCRIPT_RUNNER:-/home/kim/freelang-script/bin/fl-script-unified.js}"
-    if [[ -f "$SCRIPT_RUNNER" ]]; then
+    SCRIPT_RUNNER="${FREELANG_SCRIPT_RUNNER:-$DETECTED_RUNNER}"
+    SCRIPT_TEST_COUNT=0
+    [[ -d "$TEST_ROOT" ]] && SCRIPT_TEST_COUNT="$(find "$TEST_ROOT" -type f -name '*.test.fls' -print 2>/dev/null | wc -l | tr -d ' ')"
+    AFJ_TEST_COUNT=0
+    [[ -d "$TEST_ROOT" ]] && AFJ_TEST_COUNT="$(find "$TEST_ROOT" -type f -name '*.test.fl' -print 2>/dev/null | wc -l | tr -d ' ')"
+    if [[ "$SCRIPT_TEST_COUNT" -gt 0 && -f "$SCRIPT_RUNNER" ]]; then
       node "$SCRIPT_RUNNER" test "$TEST_ROOT" --allow-listed "$@"
-      echo "FREELANG_TEST=PASS"
+      echo "FREELANG_SCRIPT_TEST=PASS"
+    elif [[ "$SCRIPT_TEST_COUNT" -gt 0 ]]; then
+      echo "FREELANG_TEST=BLOCKED"
+      echo "CAUSE=Script runner not found: $SCRIPT_RUNNER" >&2
+      exit 2
+    fi
+    if [[ "$AFJ_TEST_COUNT" -eq 0 ]]; then
+      [[ "$SCRIPT_TEST_COUNT" -gt 0 ]] && { echo "FREELANG_TEST=PASS"; exit 0; }
+      echo "FREELANG_TEST=NO_TESTS"
       exit 0
+    fi
+    if [[ -n "${FREELANG_AFJ_RUNNER:-}" ]]; then
+      RUNNER="$FREELANG_AFJ_RUNNER"
+    elif [[ -f "/root/lang/freelang-afj/bootstrap.js" ]]; then
+      RUNNER="/root/lang/freelang-afj/bootstrap.js"
+    elif [[ -f "/root/freelang-afj/bootstrap.js" ]]; then
+      RUNNER="/root/freelang-afj/bootstrap.js"
+    else
+      RUNNER="/home/kim/kim/platform/freelang-afj/bootstrap.js"
     fi
     ;;
   AIA)

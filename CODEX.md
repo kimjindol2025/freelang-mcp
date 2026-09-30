@@ -43,12 +43,16 @@ AFJ 런너는 다음 우선순위로 선택된다.
 export FREELANG_AFJ_RUNNER=/path/to/freelang-afj/bootstrap.js
 ```
 
+Script 런너도 `FREELANG_SCRIPT_RUNNER`, `FREELANG_SCRIPT_ROOT`,
+`/root/freelang-script/bin/fl-script-unified.js` 순으로 자동 탐색한다.
+
 ## 검증 명령
 
 ```bash
 bash -n scripts/* install.sh uninstall.sh tests/deploy-fixture/run.sh
 npm test
 npm run test:deploy-fixture
+npm run test:mcp
 npm run review -- .
 ```
 
