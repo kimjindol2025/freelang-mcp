@@ -130,6 +130,10 @@ MCP_HTTP_BEARER_TOKEN=change-me \
 `tools/call(add)`를 수행한다. 자체 `curl` 검사는 오류·보안 거부 확인에만
 사용하고 SDK 호환 PASS의 근거로 사용하지 않는다.
 
+HTTP 본문 제한과 Content-Type 회귀는 실행기 없이
+`npm run test:mcp:http:requests`로 검증한다. 제한을 넘는 요청은 본문 종료를
+기다리지 않고 HTTP 413을 반환한 뒤 연결을 닫는다.
+
 ## 다음 단계
 
 이번 단계 이후 계획은 다음 순서로만 확장한다.

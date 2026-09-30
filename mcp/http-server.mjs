@@ -183,7 +183,7 @@ function dispatchModern(request, cwd) {
 async function readBody(request, maxBytes) {
   const length = Number(request.headers["content-length"] || 0);
   if (Number.isFinite(length) && length > maxBytes) {
-    request.resume();
+    request.pause();
     const error = new Error("request body too large");
     error.code = "BODY_TOO_LARGE";
     throw error;
@@ -191,24 +191,24 @@ async function readBody(request, maxBytes) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
-    let tooLarge = false;
-    request.on("data", (chunk) => {
+    const onData = (chunk) => {
       size += chunk.length;
       if (size > maxBytes) {
-        tooLarge = true;
-        return;
-      }
-      chunks.push(chunk);
-    });
-    request.on("end", () => {
-      if (tooLarge) {
+        request.pause();
+        request.off("data", onData);
+        request.off("end", onEnd);
         const error = new Error("request body too large");
         error.code = "BODY_TOO_LARGE";
         reject(error);
         return;
       }
+      chunks.push(chunk);
+    };
+    const onEnd = () => {
       resolve(Buffer.concat(chunks).toString("utf8"));
-    });
+    };
+    request.on("data", onData);
+    request.on("end", onEnd);
     request.on("error", reject);
   });
 }
@@ -238,7 +238,8 @@ function createRequestHandler(config) {
       sendError(response, 406, null, -32600, "Accept must include application/json and text/event-stream");
       return;
     }
-    if (!String(request.headers["content-type"] || "").toLowerCase().startsWith("application/json")) {
+    const mediaType = String(request.headers["content-type"] || "").split(";", 1)[0].trim().toLowerCase();
+    if (mediaType !== "application/json") {
       sendError(response, 415, null, -32600, "Content-Type must be application/json");
       return;
     }
@@ -248,6 +249,8 @@ function createRequestHandler(config) {
       body = JSON.parse(await readBody(request, config.maxBodyBytes));
     } catch (error) {
       if (error.code === "BODY_TOO_LARGE") {
+        response.setHeader("Connection", "close");
+        response.once("finish", () => request.socket.destroy());
         sendError(response, 413, null, -32600, "Request body exceeds configured limit");
       } else {
         sendError(response, 400, null, -32700, "Parse error");

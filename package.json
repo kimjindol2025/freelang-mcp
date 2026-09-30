@@ -11,6 +11,7 @@
     "mcp:http": "node mcp/http-server.mjs",
     "test:mcp": "node mcp/tests/mcp-client.mjs",
     "test:mcp:http": "node mcp/tests/http-client.mjs",
+    "test:mcp:http:requests": "node --test mcp/tests/http-request.test.mjs",
     "handoff": "./scripts/fl-handoff",
     "evidence": "./scripts/fl-evidence --json",
     "adapter": "./scripts/fl-adapter list",
