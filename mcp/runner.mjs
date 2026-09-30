@@ -10,6 +10,7 @@ export function runnerCandidates(env = process.env) {
   return [
     env.FREELANG_SCRIPT_ROOT ? path.join(env.FREELANG_SCRIPT_ROOT, "bin", "fl-script-unified.js") : null,
     path.join(ROOT, "..", "freelang-script", "bin", "fl-script-unified.js"),
+    "/home/kim/freelang-script/bin/fl-script-unified.js",
     "/root/freelang-script/bin/fl-script-unified.js",
     "/root/lang/freelang-script/bin/fl-script-unified.js"
   ].filter(Boolean);

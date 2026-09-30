@@ -47,6 +47,8 @@ elif has_file "freelang.json" || has_file "bin/fl-script-unified.js" || has_glob
     RUNNER="$FREELANG_SCRIPT_RUNNER"
   elif [[ -n "${FREELANG_SCRIPT_ROOT:-}" && -f "$FREELANG_SCRIPT_ROOT/bin/fl-script-unified.js" ]]; then
     RUNNER="$FREELANG_SCRIPT_ROOT/bin/fl-script-unified.js"
+  elif [[ -f "/home/kim/freelang-script/bin/fl-script-unified.js" ]]; then
+    RUNNER="/home/kim/freelang-script/bin/fl-script-unified.js"
   elif [[ -f "/root/freelang-script/bin/fl-script-unified.js" ]]; then
     RUNNER="/root/freelang-script/bin/fl-script-unified.js"
   elif [[ -f "/root/lang/freelang-script/bin/fl-script-unified.js" ]]; then
