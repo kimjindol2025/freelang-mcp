@@ -19,7 +19,7 @@ try {
   assert.equal(client.getProtocolEra(), "modern");
   assert.equal(client.getNegotiatedProtocolVersion(), "2026-07-28");
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map((tool) => tool.name), ["add"]);
+  assert.deepEqual(listed.tools.map((tool) => tool.name), ["add", "status", "check", "test"]);
   assert.match(listed.tools[0].description, /FreeLang Script/);
   assert.equal(listed.tools[0].inputSchema.type, "object");
   assert.deepEqual(listed.tools[0].inputSchema.required, ["a", "b"]);

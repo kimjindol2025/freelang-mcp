@@ -179,7 +179,7 @@ async function runRequestHandlingTests() {
     assert.equal(initialized.result.protocolVersion, "2025-11-25");
     await expectNoResponse(server, { jsonrpc: "2.0", method: "notifications/initialized" });
     const listed = await server.request({ jsonrpc: "2.0", id: 6, method: "tools/list", params: {} });
-    assert.deepEqual(listed.result.tools.map((tool) => tool.name), ["add"]);
+    assert.deepEqual(listed.result.tools.map((tool) => tool.name), ["add", "status", "check", "test"]);
     const blocked = await server.request({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "add", arguments: { a: 2, b: 3 } } });
     assert.equal(blocked.result.isError, true);
     assert.equal(blocked.result.structuredContent.error.code, "FREELANG_RUNNER_UNAVAILABLE");
@@ -199,7 +199,7 @@ async function runIntegrationTests(runner) {
   await first.notify({ jsonrpc: "2.0", method: "notifications/initialized" });
 
   const listed = await first.request({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
-  assert.deepEqual(listed.result.tools.map((tool) => tool.name), ["add"]);
+    assert.deepEqual(listed.result.tools.map((tool) => tool.name), ["add", "status", "check", "test"]);
   assert.deepEqual(listed.result.tools[0].inputSchema.required, ["a", "b"]);
   assert.equal(listed.result.tools[0].inputSchema.additionalProperties, false);
   assert.equal(listed.result.tools[0].inputSchema.properties.a.type, "number");
@@ -226,6 +226,12 @@ async function runIntegrationTests(runner) {
   assert.equal(directOverflow.ok, false);
   assert.equal(overflow.result.isError, true);
   assert.equal(overflow.result.structuredContent.error.code, directOverflow.error.code);
+  for (const [id, name] of [[14, "status"], [15, "check"], [16, "test"]]) {
+    const projectResult = await first.request({ jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: { project: "." } } });
+    assert.equal(projectResult.result.isError, false, JSON.stringify(projectResult));
+    assert.equal(projectResult.result.structuredContent.status, "PASS", JSON.stringify(projectResult));
+    assert.match(projectResult.result.structuredContent.output, /PROJECT=freelang-mcp|FREELANG_(CHECK|TEST)=PASS/);
+  }
   await first.close();
 
   const second = startServer(runner, logFile);
@@ -235,14 +241,14 @@ async function runIntegrationTests(runner) {
   await second.close();
 
   const records = fs.readFileSync(logFile, "utf8").trim().split(/\r?\n/).map((line) => JSON.parse(line));
-  assert.deepEqual(records.map((record) => record.requestId), [3, 4, 5, 6, 7, 8, 9, 12, 13, 11]);
+  assert.deepEqual(records.map((record) => record.requestId), [3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 11]);
   for (const record of records) {
-    assert.equal(record.toolName === "add" || record.toolName === "missing", true);
+    assert.equal(["add", "missing", "status", "check", "test"].includes(record.toolName), true);
     assert.equal(typeof record.success, "boolean");
     assert.equal(typeof record.durationMs, "number");
     assert.equal(Object.prototype.hasOwnProperty.call(record, "arguments"), false);
   }
-  assert.equal(records.filter((record) => record.success).length, 4);
+  assert.equal(records.filter((record) => record.success).length, 7);
   assert.equal(records.filter((record) => !record.success).length, 6);
   console.log("MCP_CLIENT_INTEGRATION=PASS");
   console.log("MCP_PROTOCOL=2025-11-25");

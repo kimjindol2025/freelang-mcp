@@ -1,7 +1,8 @@
 import { performance } from "node:perf_hooks";
 import { getTool } from "./registry.mjs";
-import { authorizeTool, validateArguments } from "./policy.mjs";
+import { authorizeTool, validateArguments, validateProjectArguments } from "./policy.mjs";
 import { runAdd } from "./runner.mjs";
+import { runProjectTool } from "./project-tools.mjs";
 import { writeAudit } from "./audit.mjs";
 
 function textResult(text, isError = false, structuredContent) {
@@ -44,7 +45,7 @@ export function handleToolCall(request, cwd) {
     recordTool(request, cwd, toolName, false, startedAt, permission.code);
     return { jsonrpc: "2.0", id: request.id ?? null, result: textResult(permission.message, true) };
   }
-  const validation = validateArguments(args);
+  const validation = toolName === "add" ? validateArguments(args) : validateProjectArguments(args);
   if (!validation.ok) {
     recordTool(request, cwd, toolName, false, startedAt, validation.code);
     return {
@@ -54,7 +55,30 @@ export function handleToolCall(request, cwd) {
     };
   }
 
-  const result = runAdd(args.a, args.b, { cwd });
+  const result = toolName === "add"
+    ? runAdd(args.a, args.b, { cwd })
+    : runProjectTool(toolName, cwd, validation.project);
+  if (toolName !== "add") {
+    if (!result.ok) {
+      recordTool(request, cwd, toolName, false, startedAt, result.error.code);
+      return {
+        jsonrpc: "2.0",
+        id: request.id ?? null,
+        result: textResult(result.error.message, true, { error: result.error, project: result.project })
+      };
+    }
+    recordTool(request, cwd, toolName, true, startedAt);
+    return {
+      jsonrpc: "2.0",
+      id: request.id ?? null,
+      result: textResult(result.output, false, {
+        project: result.project,
+        status: result.status,
+        output: result.output,
+        exitCode: result.exitCode
+      })
+    };
+  }
   if (!result.ok) {
     recordTool(request, cwd, toolName, false, startedAt, result.error.code);
     return {
