@@ -3,10 +3,137 @@ set -Eeuo pipefail
 
 SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
 TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+MODE="auto"
+case "${1:-}" in
+  --v11|--afj|--auto)
+    MODE="${1#--}"
+    shift
+    ;;
+esac
 TARGET_INPUT="${1:-.}"
 shift || true
 ROOT="$(cd -- "$TARGET_INPUT" && pwd -P)"
 TEST_ROOT="${FREELANG_TEST_ROOT:-$ROOT/tests}"
+
+resolve_v11_runner() {
+  if [[ -n "${FREELANG_V11_BOOTSTRAP:-}" ]]; then
+    printf '%s\n' "$FREELANG_V11_BOOTSTRAP"
+    return
+  fi
+  if [[ -n "${FREELANG_V11_ROOT:-}" && -f "$FREELANG_V11_ROOT/bootstrap.js" ]]; then
+    printf '%s\n' "$FREELANG_V11_ROOT/bootstrap.js"
+    return
+  fi
+  for candidate in \
+    "/root/freelang-v11/bootstrap.js" \
+    "/root/freelang-surface-v0-clean-ek3qo2/v11/bootstrap.js"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+  printf '%s\n' ""
+}
+
+resolve_afj_runner() {
+  if [[ -n "${FREELANG_AFJ_RUNNER:-}" ]]; then
+    printf '%s\n' "$FREELANG_AFJ_RUNNER"
+    return
+  fi
+  if [[ -f "$ROOT/bootstrap.js" ]]; then
+    printf '%s\n' "$ROOT/bootstrap.js"
+    return
+  fi
+  if [[ -n "${FREELANG_AFJ_ROOT:-}" && -f "$FREELANG_AFJ_ROOT/bootstrap.js" ]]; then
+    printf '%s\n' "$FREELANG_AFJ_ROOT/bootstrap.js"
+    return
+  fi
+  for candidate in \
+    "/root/lang/freelang-afj/bootstrap.js" \
+    "/root/freelang-afj/bootstrap.js" \
+    "/home/kim/kim/platform/freelang-afj/bootstrap.js"; do
+    if [[ -f "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done
+  printf '%s\n' "/home/kim/kim/platform/freelang-afj/bootstrap.js"
+}
+
+run_explicit_suite() {
+  local kind="$1"
+  local runner="$2"
+  local marker="FREELANG_${kind}_TEST"
+  local test_list_file
+  local output_file=""
+
+  if [[ -z "$runner" || ! -f "$runner" ]]; then
+    echo "$marker=BLOCKED"
+    echo "FREELANG_TEST=BLOCKED"
+    echo "CAUSE=${kind} runner not found: ${runner:-<unset>}" >&2
+    return 2
+  fi
+  if [[ ! -d "$TEST_ROOT" ]]; then
+    echo "$marker=NO_TESTS"
+    echo "FREELANG_TEST=NO_TESTS"
+    return 0
+  fi
+
+  test_list_file="$(mktemp)"
+  cleanup_explicit() {
+    rm -f "${test_list_file:-}" "${output_file:-}"
+  }
+  trap cleanup_explicit EXIT INT TERM
+  find "$TEST_ROOT" -type f -name '*.test.fl' -print | sort > "$test_list_file"
+  mapfile -t TEST_FILES < "$test_list_file"
+  if [[ "${#TEST_FILES[@]}" -eq 0 ]]; then
+    echo "$marker=NO_TESTS"
+    echo "FREELANG_TEST=NO_TESTS"
+    return 0
+  fi
+
+  for test_file in "${TEST_FILES[@]}"; do
+    local relative="${test_file#"$ROOT/"}"
+    echo "[fl-test:$kind] check $relative"
+    if ! node "$runner" check "$test_file"; then
+      echo "$marker=FAIL"
+      echo "FREELANG_TEST=FAIL"
+      return 1
+    fi
+
+    rm -f "$output_file"
+    output_file="$(mktemp)"
+    echo "[fl-test:$kind] run $relative"
+    if ! node "$runner" run "$test_file" >"$output_file" 2>&1; then
+      cat "$output_file"
+      echo "$marker=FAIL"
+      echo "FREELANG_TEST=FAIL"
+      return 1
+    fi
+    cat "$output_file"
+    if ! grep -Eq '^Test Results: [0-9]+/[0-9]+ passed$' "$output_file" || grep -q 'FAILED' "$output_file"; then
+      echo "[fl-test:$kind] missing passing summary: $relative" >&2
+      echo "$marker=FAIL"
+      echo "FREELANG_TEST=FAIL"
+      return 1
+    fi
+  done
+
+  echo "$marker=PASS"
+  echo "FREELANG_TEST=PASS"
+  return 0
+}
+
+case "$MODE" in
+  v11)
+    run_explicit_suite "V11" "$(resolve_v11_runner)"
+    exit $?
+    ;;
+  afj)
+    run_explicit_suite "AFJ" "$(resolve_afj_runner)"
+    exit $?
+    ;;
+esac
 
 DETECT_OUTPUT="$($TOOLS_ROOT/scripts/fl-detect "$ROOT")"
 DIALECT="$(printf '%s\n' "$DETECT_OUTPUT" | sed -n 's/^DIALECT=//p')"

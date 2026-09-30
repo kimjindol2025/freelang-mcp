@@ -25,7 +25,7 @@ run_gate() {
 }
 
 run_gate CHECK "$TOOLS_ROOT/scripts/fl-check" "$ROOT"
-run_gate TEST "$TOOLS_ROOT/scripts/fl-test" "$ROOT"
+run_gate TEST "$TOOLS_ROOT/scripts/fl-test" --v11 "$ROOT"
 
 if [[ -f "$ROOT/package.json" ]] && node -e 'const p=require(process.argv[1]); process.exit(p.scripts?.lint ? 0 : 1)' "$ROOT/package.json" 2>/dev/null; then
   run_gate LINT npm --prefix "$ROOT" run lint

@@ -48,6 +48,8 @@ fl-tools release-check
 fl-tools safe-push --help
 fl-test
 npm run test:mcp
+npm run test:v11
+npm run test:afj
 ```
 
 `init`은 프로젝트의 `.freelang/worklog.md` 작업 기록 공간을 만든다.
@@ -64,10 +66,30 @@ npm run test:mcp
 현재는 `2025-11-25` stdio legacy handshake와 FreeLang Script 기반 `add` 도구만
 지원한다. 실제 연결 검증은 `npm run test:mcp`로 실행한다.
 
-`fl-test`는 현재 프로젝트의 `tests/**/*.test.fl`을 자동 발견하고, AFJ
-런타임의 `check → run`과 `deftest`/`is`/`is=`/`run-tests` 결과를 검사한다.
+테스트 계약은 세 흐름을 독립적으로 판정한다.
 
-AFJ 런너 위치는 기본적으로 다음을 사용한다.
+| 명령 | 검증 범위 | 필요한 실행기 | 실행기 부재 |
+| --- | --- | --- | --- |
+| `npm run test:mcp` | stdio MCP 연결·도구 조회·`add(2,3)`·오류·재연결·감사 기록 | `FREELANG_SCRIPT_RUNNER` 또는 Script 탐색 규칙 | MCP 통합만 `BLOCKED`, 종료 코드 2 |
+| `npm test` 또는 `npm run test:v11` | `tests/**/*.test.fl`의 v11 bootstrap 호환 회귀 | `FREELANG_V11_BOOTSTRAP` 또는 `FREELANG_V11_ROOT/bootstrap.js` | v11 회귀만 `BLOCKED`, 종료 코드 2 |
+| `npm run test:afj` | `tests/**/*.test.fl`의 AFJ 회귀 | `FREELANG_AFJ_RUNNER` 또는 AFJ 탐색 규칙 | AFJ 회귀만 `BLOCKED`, 종료 코드 2 |
+
+`npm run test:mcp`는 MCP 프로토콜 처리와 FreeLang Script 계산을 검증하고,
+`npm test`는 v11 `bootstrap.js`를 명시한 호환 회귀만 검증한다. AFJ 환경이 없다고
+해서 두 결과가 함께 차단되거나, MCP/v11 PASS를 native AFJ PASS로 확대하지 않는다.
+실제 테스트 실패는 각 명령에서 `FAIL`과 비정상 종료 코드로 남는다.
+
+`fl-test`를 인자 없이 실행하면 기존 자동 감지(`--auto`) 계약을 유지한다. 새 작업이나
+보고에서는 위의 `--v11`/`--afj` 명시 명령을 사용한다.
+
+명시 모드에서 각 `.test.fl` 파일은 `node <runner> check <file>` 후
+`node <runner> run <file>` 순서로 실행하고, `Test Results: N/N passed`가 없거나
+실행기가 실패하면 `FAIL`로 판정한다. v11 런너 탐색 순서는
+`FREELANG_V11_BOOTSTRAP`, `FREELANG_V11_ROOT/bootstrap.js`, 로컬 v11
+기본 경로다. AFJ 런너 탐색 순서는 `FREELANG_AFJ_RUNNER`, 프로젝트의
+`bootstrap.js`, `FREELANG_AFJ_ROOT/bootstrap.js`, 설치 기본 경로다.
+
+AFJ 런너의 설치 기본 경로는 다음과 같다.
 
 ```text
 /home/kim/kim/platform/freelang-afj/bootstrap.js
@@ -76,8 +98,20 @@ AFJ 런너 위치는 기본적으로 다음을 사용한다.
 다른 환경에서는 다음처럼 지정한다.
 
 ```bash
-FREELANG_AFJ_RUNNER=/path/to/bootstrap.js fl-test
+FREELANG_AFJ_RUNNER=/path/to/bootstrap.js npm run test:afj
 ```
+
+v11 호환 회귀는 다음처럼 지정할 수 있다.
+
+```bash
+FREELANG_V11_BOOTSTRAP=/path/to/bootstrap.js npm run test:v11
+FREELANG_V11_ROOT=/path/to/freelang-v11 npm run test:v11
+```
+
+FreeLang v11의 `bin/fl` 같은 C/네이티브 컴파일러는 애플리케이션 실행기로
+취급하지 않는다. `test:afj`의 런너는 `check`와 `run`을 제공하는 AFJ
+`bootstrap.js`여야 하며, 컴파일러가 존재한다는 이유만으로 AFJ 회귀를 PASS로
+판정하지 않는다.
 
 프로젝트에 설치하지 않고도 PATH에 연결해 사용할 수 있다.
 
