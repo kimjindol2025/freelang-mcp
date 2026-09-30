@@ -31,6 +31,7 @@ fl-tools start .
 fl-tools inspect .
 fl-tools review .
 fl-tools report .
+fl-tools pipeline .
 fl-tools handoff .
 fl-tools evidence --json .
 fl-tools adapter list .
@@ -53,6 +54,10 @@ fl-test
 리뷰 결과를 완료 보고서 형식으로 출력한다. `handoff`는 다음 작업자를 위한
 `.freelang/handoff.md`를 만들고, `evidence --json`은 검증 결과를 JSON으로
 보존한다. `adapter list`는 현재 프로젝트에서 사용할 수 있는 런너를 보여준다.
+`pipeline`은 init부터 inspect, review, report, handoff까지 자동 실행한다.
+배포가 필요하면 `fl-tools pipeline . --deploy`를 사용하며, push는 실행하지 않는다.
+`--deploy`도 dirty worktree 보호를 유지하므로, 작업 기록 파일을 먼저 commit하거나
+명시적으로 `FREELANG_ALLOW_DIRTY_DEPLOY=1`을 설정해야 한다.
 
 `fl-test`는 현재 프로젝트의 `tests/**/*.test.fl`을 자동 발견하고, AFJ
 런타임의 `check → run`과 `deftest`/`is`/`is=`/`run-tests` 결과를 검사한다.

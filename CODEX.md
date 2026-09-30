@@ -13,6 +13,7 @@ init → inspect → check/test → review → report → deploy
 - `fl-tools init <path>`: `.freelang/worklog.md` 작업 기록 공간을 만든다.
 - `fl-tools detect <path>`: FreeLang 계열과 런너를 판별한다.
 - `fl-tools inspect <path>`: detect, route, doctor, status를 통합 실행한다.
+- `fl-tools pipeline <path>`: init, inspect, review, report, handoff를 자동 실행한다.
 - `fl-tools start <path>`: 작업 시작 컨텍스트와 준비 상태를 출력한다.
 - `fl-tools check <path>`: 소스 문법과 테스트를 검사한다.
 - `fl-tools review <path>`: check, test, lint, build, diff, 생성물, 계약 drift를 검사한다.
@@ -21,6 +22,10 @@ init → inspect → check/test → review → report → deploy
 - `fl-tools evidence --json <path>`: 검증 결과와 원시 출력을 JSON으로 보존한다.
 - `fl-tools adapter list <path>`: AFJ, FX, AIA, Script, Front 런너 상태를 출력한다.
 - `fl-tools deploy <path>`: review 통과 후 프로젝트가 제공한 배포·smoke 계약만 실행한다.
+
+`pipeline`은 기본적으로 배포와 push를 실행하지 않는다. 배포가 명시적으로
+필요할 때만 `fl-tools pipeline <path> --deploy`를 사용한다. 이 모드도 dirty
+worktree 보호를 유지하며, 우회는 `FREELANG_ALLOW_DIRTY_DEPLOY=1`을 명시해야 한다.
 
 ## 런너 설정
 

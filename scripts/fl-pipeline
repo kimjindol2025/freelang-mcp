@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+SCRIPT_PATH="$(readlink -f -- "${BASH_SOURCE[0]}")"
+TOOLS_ROOT="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+TARGET="."
+DEPLOY=NO
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --deploy) DEPLOY=YES ;;
+    --help|-h)
+      cat <<'EOF'
+사용법: fl-tools pipeline [경로] [--deploy]
+
+기본 흐름:
+  init → inspect → review → report → handoff
+
+--deploy를 지정하면 review/report 통과 후 프로젝트 배포 계약도 실행한다.
+Git push는 이 명령으로 실행하지 않는다.
+EOF
+      exit 0
+      ;;
+    *) TARGET="$1" ;;
+  esac
+  shift
+done
+
+if [[ ! -d "$TARGET" ]]; then
+  echo "PIPELINE=BLOCKED"
+  echo "CAUSE=directory not found: $TARGET" >&2
+  exit 2
+fi
+
+ROOT="$(cd -- "$TARGET" && pwd -P)"
+FAIL=0
+
+run_step() {
+  local name="$1"
+  shift
+  local output code
+  echo "--- STEP_$name ---"
+  set +e
+  output="$("$@" 2>&1)"
+  code=$?
+  set -e
+  printf '%s\n' "$output"
+  if [[ "$code" -eq 0 ]]; then
+    echo "STEP_$name=PASS"
+  else
+    echo "STEP_$name=FAIL"
+    FAIL=1
+  fi
+}
+
+run_step INIT "$TOOLS_ROOT/scripts/fl-init" "$ROOT"
+run_step INSPECT "$TOOLS_ROOT/scripts/fl-inspect" "$ROOT"
+run_step REVIEW "$TOOLS_ROOT/scripts/fl-review" "$ROOT"
+run_step REPORT "$TOOLS_ROOT/scripts/fl-report" "$ROOT"
+
+if [[ "$DEPLOY" == YES && "$FAIL" -eq 0 ]]; then
+  run_step DEPLOY "$TOOLS_ROOT/scripts/fl-deploy" "$ROOT"
+elif [[ "$DEPLOY" == YES ]]; then
+  echo "STEP_DEPLOY=BLOCKED"
+  echo "CAUSE=previous pipeline step failed"
+  FAIL=1
+else
+  echo "STEP_DEPLOY=SKIPPED"
+fi
+
+run_step HANDOFF "$TOOLS_ROOT/scripts/fl-handoff" "$ROOT"
+
+if [[ "$FAIL" -eq 0 ]]; then
+  echo "PUSH=NOT_PERFORMED"
+  echo "PIPELINE=PASS"
+else
+  echo "PUSH=NOT_PERFORMED"
+  echo "PIPELINE=FAIL"
+  exit 1
+fi

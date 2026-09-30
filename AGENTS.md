@@ -21,6 +21,8 @@
 6. `fl-tools report <target>` 결과와 diff, 환경 한계를 보고한다.
 7. 필요하면 `fl-tools handoff <target>`와 `fl-tools evidence --json <target>`로
    다음 작업자에게 전달할 상태를 보존한다.
+8. 반복 작업은 `fl-tools pipeline <target>`으로 자동화하되, 배포는 `--deploy`를
+   명시한 경우에만 허용한다. pipeline은 Git push를 실행하지 않는다.
 
 ## Implementation rules
 
@@ -41,6 +43,7 @@
 ./scripts/fl-tools detect .
 ./scripts/fl-tools review .
 ./scripts/fl-tools report .
+./scripts/fl-tools pipeline .
 ./scripts/fl-tools handoff .
 ./scripts/fl-tools evidence --json .
 ./scripts/fl-tools adapter list .

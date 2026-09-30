@@ -6,6 +6,7 @@
     "init": "./scripts/fl-init",
     "inspect": "./scripts/fl-inspect",
     "report": "./scripts/fl-report",
+    "pipeline": "./scripts/fl-pipeline",
     "handoff": "./scripts/fl-handoff",
     "evidence": "./scripts/fl-evidence --json",
     "adapter": "./scripts/fl-adapter list",
