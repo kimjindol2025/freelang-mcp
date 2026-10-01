@@ -82,6 +82,7 @@ const PROJECT_TOOL_INPUT = Object.freeze({
 });
 
 function projectTool(name, title, description) {
+  const mutating = projectToolDefinition(name).mutating === true;
   return Object.freeze({
     name,
     title,
@@ -99,9 +100,9 @@ function projectTool(name, title, description) {
       additionalProperties: true
     }),
     annotations: Object.freeze({
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
+      readOnlyHint: false,
+      destructiveHint: mutating,
+      idempotentHint: false,
       openWorldHint: false
     })
   });
@@ -116,4 +117,4 @@ export function listTools() {
 export function getTool(name) {
   return listTools().find((tool) => tool.name === name) || null;
 }
-import { PROJECT_TOOL_NAMES } from "./project-tools.mjs";
+import { PROJECT_TOOL_NAMES, projectToolDefinition } from "./project-tools.mjs";

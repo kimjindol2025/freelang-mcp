@@ -91,7 +91,7 @@ function dispatch(request) {
   if (request.method === "tools/list") {
     return { jsonrpc: "2.0", id: request.id ?? null, result: { tools: listTools() } };
   }
-  if (request.method === "tools/call") return handleToolCall(request, cwd);
+  if (request.method === "tools/call") return handleToolCall(request, cwd, { protocolVersion: PROTOCOL_VERSION, transport: "stdio" });
   if (request.method.startsWith("notifications/")) return null;
   return errorResponse(request.id, -32601, `Method not found: ${request.method}`);
 }

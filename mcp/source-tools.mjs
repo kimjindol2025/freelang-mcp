@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { PROTOCOL_VERSION, listTools } from "./registry.mjs";
 
 const MAX_SOURCE_BYTES = 100_000;
 const MAX_MATCHES = 50;
@@ -24,10 +25,19 @@ export function resolveSourcePath(cwd, relativePath) {
     return { ok: false, error: { code: "SOURCE_SCOPE_DENIED", message: "path must stay inside the MCP workspace" } };
   }
   let stat;
-  try { stat = fs.statSync(resolved); } catch { return { ok: false, error: { code: "SOURCE_NOT_FOUND", message: `source file not found: ${relativePath}` } }; }
+  let canonical;
+  try {
+    canonical = fs.realpathSync(resolved);
+    stat = fs.statSync(canonical);
+  } catch { return { ok: false, error: { code: "SOURCE_NOT_FOUND", message: `source file not found: ${relativePath}` } }; }
+  const canonicalWorkspace = fs.realpathSync(workspace);
+  const canonicalRelative = path.relative(canonicalWorkspace, canonical);
+  if (canonicalRelative === ".." || canonicalRelative.startsWith(`..${path.sep}`) || path.isAbsolute(canonicalRelative)) {
+    return { ok: false, error: { code: "SOURCE_SCOPE_DENIED", message: "path must stay inside the MCP workspace" } };
+  }
   if (!stat.isFile()) return { ok: false, error: { code: "SOURCE_NOT_FOUND", message: `source file not found: ${relativePath}` } };
   if (stat.size > MAX_SOURCE_BYTES) return { ok: false, error: { code: "SOURCE_TOO_LARGE", message: `source file exceeds ${MAX_SOURCE_BYTES} bytes` } };
-  return { ok: true, path: resolved, relative: relative || path.basename(resolved) };
+  return { ok: true, path: canonical, relative: relative || path.basename(resolved) };
 }
 
 export function readSource(cwd, options = {}) {
@@ -85,12 +95,12 @@ export function searchSource(cwd, options = {}) {
   return { ok: true, value: { query: options.query, path: options.path ?? "*", matches, truncated: matches.length >= MAX_MATCHES } };
 }
 
-export function projectInfo(cwd) {
+export function projectInfo(cwd, context = {}) {
   return {
     project: path.basename(path.resolve(cwd)),
-    protocolVersion: "2025-11-25",
-    transport: "stdio/http",
+    protocolVersion: context.protocolVersion || PROTOCOL_VERSION,
+    transport: context.transport || "stdio",
     workspace: path.resolve(cwd),
-    tools: ["add", "project_info", "read_source", "search"]
+    tools: listTools().map((tool) => tool.name)
   };
 }

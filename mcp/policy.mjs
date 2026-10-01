@@ -1,6 +1,6 @@
 const PROJECT_TOOLS = new Set([
   "start", "inspect", "review", "report", "detect", "status", "check", "test", "route", "doctor",
-  "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "safe_push", "session_status"
+  "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "session_status"
 ]);
 
 export function authorizeTool(name) {

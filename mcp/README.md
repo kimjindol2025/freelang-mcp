@@ -9,7 +9,7 @@
 - lifecycle: `initialize` → `notifications/initialized` → operation
 - supported operations: `ping`, `tools/list`, `tools/call`, `shutdown`, `exit`
 - server capability: `tools`
-- supported tool: `add`
+- registered tools: see the tool table and project commands below
 - not supported on this transport: OAuth, resources, prompts, tasks, modern
   per-request `_meta`
 
@@ -50,16 +50,17 @@ stdio와 HTTP는 서로 다른 lifecycle을 사용하며, 한 전송 안에서 h
 
 추가로 `start`, `inspect`, `review`, `report`, `detect`, `route`, `doctor`,
 `release_check`, `evidence`, `adapter`, `handoff`, `init`, `pipeline`, `journal`,
-`safe_push`, `session_status`가 등록되어 있다. 각 도구는 동일한 고정 스크립트
-계약을 호출한다. `init`, `handoff`, `pipeline`, `journal`, `safe_push`는
-`confirm: true`가 없으면 실행되지 않는다.
+`session_status`가 등록되어 있다. 각 도구는 동일한 고정 스크립트
+계약을 호출한다. `init`, `handoff`, `pipeline`, `journal`은
+`confirm: true`가 없으면 실행되지 않는다. `confirm`은 요청 인자일 뿐
+별도 사용자 승인 절차가 아니므로, push는 MCP에 노출하지 않고 CLI에서만 수행한다.
+프로젝트 검증 도구의 종료 코드 2는 `BLOCKED`로 반환한다.
 
 현재 등록 목록은 `add`, `project_info`, `read_source`, `search`, `status`, `check`, `test`를 포함한다. MCP 호스트는 JSON 입력 형식을 확인하고,
 `mcp/core/add.fls`가 전달받은 값의 숫자 변환과 덧셈을 실제로 수행한다.
 임의 코드·셸 명령 실행 도구는 등록하지 않는다. `deploy`는 MCP에 등록하지 않고
-개별 배포 절차로 유지한다. 프로젝트 도구는 저장소의
-고정된 `scripts/fl-status`, `scripts/fl-check`, `scripts/fl-test`만 실행하며,
-대상 경로는 MCP workspace 내부로 제한한다.
+개별 배포 절차로 유지한다. 프로젝트 도구는 저장소에 등록된 고정 `scripts/fl-*`
+명령만 실행하며, 대상의 실제 경로는 MCP workspace 내부로 제한한다.
 
 ## 계층
 

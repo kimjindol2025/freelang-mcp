@@ -27,7 +27,7 @@ function recordTool(request, cwd, toolName, success, startedAt, errorCode = null
   }
 }
 
-export function handleToolCall(request, cwd) {
+export function handleToolCall(request, cwd, context = {}) {
   const startedAt = performance.now();
   const params = request.params;
   const toolName = params && typeof params === "object" ? params.name : null;
@@ -63,7 +63,7 @@ export function handleToolCall(request, cwd) {
   const result = toolName === "add"
     ? runAdd(args.a, args.b, { cwd })
     : toolName === "project_info"
-      ? { ok: true, value: projectInfo(cwd) }
+      ? { ok: true, value: projectInfo(cwd, context) }
       : toolName === "read_source"
         ? readSource(cwd, args)
         : toolName === "search"
@@ -83,7 +83,10 @@ export function handleToolCall(request, cwd) {
       return {
         jsonrpc: "2.0",
         id: request.id ?? null,
-        result: textResult(result.error.message, true, { error: result.error, project: result.project })
+        result: textResult(result.error.message, true, {
+          error: result.error, project: result.project,
+          status: result.status, exitCode: result.exitCode, output: result.output
+        })
       };
     }
     recordTool(request, cwd, toolName, true, startedAt);

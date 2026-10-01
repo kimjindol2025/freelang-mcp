@@ -24,7 +24,6 @@ const PROJECT_COMMANDS = Object.freeze({
   init: { script: "fl-init", mutating: true },
   pipeline: { script: "fl-pipeline", mutating: true },
   journal: { script: "fl-journal", mutating: true },
-  safe_push: { script: "fl-safe-push", mutating: true, gitScoped: true },
   session_status: { script: "fl-session", args: () => ["status"], session: true }
 });
 
@@ -43,10 +42,19 @@ function resolveProject(cwd, project = ".") {
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
     return { ok: false, error: { code: "PROJECT_SCOPE_DENIED", message: "project must stay inside the MCP workspace" } };
   }
-  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+  let canonical;
+  try { canonical = fs.realpathSync(resolved); } catch {
     return { ok: false, error: { code: "PROJECT_NOT_FOUND", message: `project directory not found: ${project}` } };
   }
-  return { ok: true, project: relative || ".", resolved };
+  const canonicalWorkspace = fs.realpathSync(workspace);
+  const canonicalRelative = path.relative(canonicalWorkspace, canonical);
+  if (canonicalRelative === ".." || canonicalRelative.startsWith(`..${path.sep}`) || path.isAbsolute(canonicalRelative)) {
+    return { ok: false, error: { code: "PROJECT_SCOPE_DENIED", message: "project must stay inside the MCP workspace" } };
+  }
+  if (!fs.statSync(canonical).isDirectory()) {
+    return { ok: false, error: { code: "PROJECT_NOT_FOUND", message: `project directory not found: ${project}` } };
+  }
+  return { ok: true, project: relative || ".", resolved: canonical };
 }
 
 function trimOutput(value) {
@@ -62,7 +70,6 @@ function commandArgs(name, definition, target, options) {
     return [operation];
   }
   if (name === "pipeline") return [target.resolved];
-  if (name === "safe_push") return options.confirm === true ? ["--push"] : [];
   return [...(definition.args ? definition.args(options) : []), ...(definition.session ? [] : [target.resolved])];
 }
 
@@ -91,7 +98,7 @@ export function runProjectTool(name, cwd, options = {}) {
 
   const script = path.join(ROOT, "scripts", definition.script);
   const args = commandArgs(name, definition, target, options);
-  const executionCwd = definition.gitScoped || definition.session || name === "journal" ? target.resolved : ROOT;
+  const executionCwd = definition.session || name === "journal" ? target.resolved : ROOT;
   const result = spawnSync(script, args, {
     cwd: executionCwd,
     env: process.env,
@@ -104,12 +111,13 @@ export function runProjectTool(name, cwd, options = {}) {
     return { ok: false, project: target.project, error: { code, message: result.error.message } };
   }
   const output = trimOutput(`${result.stdout || ""}${result.stderr ? `\n${result.stderr}` : ""}`.trim());
+  const status = result.status === 0 ? "PASS" : result.status === 2 ? "BLOCKED" : "FAIL";
   return {
     ok: result.status === 0,
     project: target.project,
-    status: result.status === 0 ? "PASS" : "FAIL",
+    status,
     exitCode: result.status,
     output,
-    error: result.status === 0 ? undefined : { code: "PROJECT_TOOL_FAILED", message: `${name} exited with code ${result.status}` }
+    error: result.status === 0 ? undefined : { code: status === "BLOCKED" ? "PROJECT_TOOL_BLOCKED" : "PROJECT_TOOL_FAILED", message: `${name} exited with code ${result.status}` }
   };
 }

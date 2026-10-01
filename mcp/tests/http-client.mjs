@@ -20,16 +20,22 @@ try {
   assert.equal(client.getNegotiatedProtocolVersion(), "2026-07-28");
   const listed = await client.listTools();
   const listedNames = listed.tools.map((tool) => tool.name);
-  assert.equal(listedNames.length, 20);
-  for (const name of ["add", "start", "inspect", "review", "status", "check", "test", "doctor", "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "safe_push", "session_status"]) {
+  assert.equal(listedNames.length, 22);
+  for (const name of ["add", "start", "inspect", "review", "status", "check", "test", "doctor", "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "session_status"]) {
     assert.equal(listedNames.includes(name), true, name);
   }
+  assert.equal(listedNames.includes("safe_push"), false);
   assert.match(listed.tools[0].description, /FreeLang Script/);
   assert.equal(listed.tools[0].inputSchema.type, "object");
   assert.deepEqual(listed.tools[0].inputSchema.required, ["a", "b"]);
   assert.equal(listed.tools[0].inputSchema.additionalProperties, false);
   assert.equal(listed.tools[0].inputSchema.properties.a.type, "number");
   assert.equal(listed.tools[0].inputSchema.properties.b.type, "number");
+  const info = await client.callTool({ name: "project_info", arguments: {} });
+  assert.equal(info.isError, false);
+  assert.equal(info.structuredContent.protocolVersion, "2026-07-28");
+  assert.equal(info.structuredContent.transport, "http");
+  assert.equal(info.structuredContent.tools.length, 22);
   const result = await client.callTool({ name: "add", arguments: { a: 2, b: 3 } });
   const direct = runAdd(2, 3);
   assert.equal(direct.ok, true, JSON.stringify(direct));

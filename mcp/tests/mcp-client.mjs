@@ -180,10 +180,11 @@ async function runRequestHandlingTests() {
     await expectNoResponse(server, { jsonrpc: "2.0", method: "notifications/initialized" });
     const listed = await server.request({ jsonrpc: "2.0", id: 6, method: "tools/list", params: {} });
     const listedNames = listed.result.tools.map((tool) => tool.name);
-    assert.equal(listedNames.length, 23);
-    for (const name of ["add", "project_info", "read_source", "search", "start", "inspect", "review", "status", "check", "test", "doctor", "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "safe_push", "session_status"]) {
+    assert.equal(listedNames.length, 22);
+    for (const name of ["add", "project_info", "read_source", "search", "start", "inspect", "review", "status", "check", "test", "doctor", "release_check", "evidence", "adapter", "handoff", "init", "pipeline", "journal", "session_status"]) {
       assert.equal(listedNames.includes(name), true, name);
     }
+    assert.equal(listedNames.includes("safe_push"), false);
     const blocked = await server.request({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "add", arguments: { a: 2, b: 3 } } });
     assert.equal(blocked.result.isError, true);
     assert.equal(blocked.result.structuredContent.error.code, "FREELANG_RUNNER_UNAVAILABLE");
@@ -203,7 +204,7 @@ async function runIntegrationTests(runner) {
   await first.notify({ jsonrpc: "2.0", method: "notifications/initialized" });
 
   const listed = await first.request({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
-  assert.equal(listed.result.tools.length, 23);
+  assert.equal(listed.result.tools.length, 22);
   assert.deepEqual(listed.result.tools[0].inputSchema.required, ["a", "b"]);
   assert.equal(listed.result.tools[0].inputSchema.additionalProperties, false);
   assert.equal(listed.result.tools[0].inputSchema.properties.a.type, "number");
@@ -216,6 +217,9 @@ async function runIntegrationTests(runner) {
   const info = await first.request({ jsonrpc: "2.0", id: 17, method: "tools/call", params: { name: "project_info", arguments: {} } });
   assert.equal(info.result.isError, false);
   assert.equal(info.result.structuredContent.project, "freelang-mcp");
+  assert.equal(info.result.structuredContent.protocolVersion, "2025-11-25");
+  assert.equal(info.result.structuredContent.transport, "stdio");
+  assert.deepEqual(info.result.structuredContent.tools, listed.result.tools.map((tool) => tool.name));
   const source = await first.request({ jsonrpc: "2.0", id: 18, method: "tools/call", params: { name: "read_source", arguments: { path: "mcp/README.md", startLine: 1, endLine: 1 } } });
   assert.equal(source.result.isError, false);
   assert.equal(source.result.structuredContent.path, "mcp/README.md");

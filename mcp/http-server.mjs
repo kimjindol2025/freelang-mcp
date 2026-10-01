@@ -170,7 +170,7 @@ function dispatchModern(request, cwd) {
     };
   }
   if (request.method === "tools/call") {
-    const response = handleToolCall(request, cwd);
+    const response = handleToolCall(request, cwd, { protocolVersion: MODERN_PROTOCOL_VERSION, transport: "http" });
     if (response.result) response.result.resultType = "complete";
     return response;
   }
